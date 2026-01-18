@@ -1,6 +1,6 @@
 diff -Naur --no-dereference ./original_dir/arch/arm/boot/dts/Makefile ./modified_dir/arch/arm/boot/dts/Makefile
---- ./original_dir/arch/arm/boot/dts/Makefile	2025-07-13 23:11:14.000000000 +0300
-+++ ./modified_dir/arch/arm/boot/dts/Makefile	2025-10-08 22:46:48.056357108 +0300
+--- original_dir/arch/arm/boot/dts/Makefile	2025-07-13 23:11:14.000000000 +0300
++++ modified_dir/arch/arm/boot/dts/Makefile	2025-10-08 22:46:48.056357108 +0300
 @@ -971,7 +971,10 @@
  	r8a7794-silk.dtb \
  	r9a06g032-rzn1d400-db.dtb \
@@ -14,8 +14,8 @@ diff -Naur --no-dereference ./original_dir/arch/arm/boot/dts/Makefile ./modified
  #	rv1103g-battery-ipc-v10.dtb \
  #	rv1103g-battery-ipc-v11.dtb \
 diff -Naur --no-dereference ./original_dir/sound/soc/codecs/dummy-codec.c ./modified_dir/sound/soc/codecs/dummy-codec.c
---- ./original_dir/sound/soc/codecs/dummy-codec.c	2025-07-13 23:11:14.000000000 +0300
-+++ ./modified_dir/sound/soc/codecs/dummy-codec.c	2025-10-08 22:46:48.056357108 +0300
+--- original_dir/sound/soc/codecs/dummy-codec.c	2025-07-13 23:11:14.000000000 +0300
++++ modified_dir/sound/soc/codecs/dummy-codec.c	2025-10-08 22:46:48.056357108 +0300
 @@ -50,21 +50,29 @@
  		.stream_name = "Dummy Playback",
  		.channels_min = 2,
@@ -51,8 +51,8 @@ diff -Naur --no-dereference ./original_dir/sound/soc/codecs/dummy-codec.c ./modi
  	.ops = &dummy_codec_dai_ops,
  };
 diff -Naur --no-dereference ./original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c ./modified_dir/sound/soc/rockchip/rockchip_i2s_tdm.c
---- ./original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c	2025-07-13 23:11:14.000000000 +0300
-+++ ./modified_dir/sound/soc/rockchip/rockchip_i2s_tdm.c	2026-01-11 09:59:02.682170165 +0300
+--- original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c	2025-07-13 23:11:14.000000000 +0300
++++ modified_dir/sound/soc/rockchip/rockchip_i2s_tdm.c	2026-01-11 09:59:02.682170165 +0300
 @@ -4,18 +4,14 @@
   *
   * Copyright (c) 2018 Rockchip Electronics Co. Ltd.
