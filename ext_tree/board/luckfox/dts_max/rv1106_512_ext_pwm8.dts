@@ -1,0 +1,25 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+// Copyright (c)2022 Rockchip Electronics Co., Ltd.
+
+/dts-v1/;
+
+#include "rv1106.dtsi"
+#include "rv1106_512_ext-ipc.dtsi"
+#include "rv1106-pinctrl.dtsi"
+/ {
+	model = "Luckfox Pico Max PWM8 PPS";
+	compatible = "rockchip,rv1106";
+};
+
+&i2s0_8ch {
+	status = "okay";
+	rockchip,src4192-compat-mode;
+};
+
+&mycodec {
+	status = "okay";
+};
+
+&pwm8 {
+	status = "okay";  // ВКЛЮЧАЕМ PWM8!
+};

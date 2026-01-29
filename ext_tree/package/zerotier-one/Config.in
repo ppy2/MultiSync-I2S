@@ -1,0 +1,11 @@
+config BR2_PACKAGE_ZEROTIERONE
+    bool "zerotier-one"
+    depends on BR2_INSTALL_LIBSTDCPP
+    select BR2_PACKAGE_LIBMINIUPNPC
+    help
+      ZeroTier One creates secure virtual networks anywhere.
+      
+      ZeroTier creates a virtual ethernet adapter for each
+      network you join.
+
+      https://www.zerotier.com/

@@ -106,7 +106,7 @@
 
 /******REAL_TIME_CLOCK******/
 &rtc {
-	status = "disable";
+	status = "okay";
 };
 
 /*********TSADC*********/

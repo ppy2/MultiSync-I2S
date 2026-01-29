@@ -288,6 +288,13 @@ i2s0_8ch {
 				/* i2s0_mclk */
 				<2 RK_PA2 2 &pcfg_pull_none>;
 		};
+
+		/omit-if-no-ref/
+		i2s0_mclk_idle: i2s0-mclk-idle {
+			rockchip,pins =
+				/* i2s0_mclk as GPIO input to disconnect external MCLK */
+				<2 RK_PA2 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
 	
 		/omit-if-no-ref/
 		i2s0_sclk: i2s0-sclk {
@@ -352,8 +359,8 @@ i2s0_8ch {
 		};
 		mute_inv_gpio: mute-inv-gpio {
         		rockchip,pins =
-            			/* gpio2_a5 - Inverted mute signal (pin 69) */
-            			<2 RK_PA5 RK_FUNC_GPIO &pcfg_pull_none>;
+            			/* gpio3_c6 - Inverted mute signal (pin 118) */
+            			<3 RK_PC6 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 		dsd_on_gpio: dsd-on-gpio {
         		rockchip,pins =
@@ -366,6 +373,21 @@ i2s0_8ch {
             			/* gpio1_d1 - MCLK_SEL signal for external clock switching */
             			<1 RK_PD1 RK_FUNC_GPIO &pcfg_pull_down_drv_level_2>;
 		};
+
+	/* Idle state for master clock isolation: BCK/LRCLK as GPIO input with pull-down */
+	/omit-if-no-ref/
+	i2s0_lrck_idle: i2s0-lrck-idle {
+		rockchip,pins =
+			/* i2s0_lrck as GPIO input with pull-down to isolate slave */
+			<2 RK_PA1 RK_FUNC_GPIO &pcfg_pull_down>;
+	};
+
+	/omit-if-no-ref/
+	i2s0_sclk_idle: i2s0-sclk-idle {
+		rockchip,pins =
+			/* i2s0_sclk (BCK) as GPIO input with pull-down to isolate slave */
+			<2 RK_PA0 RK_FUNC_GPIO &pcfg_pull_down>;
+	};
 };
 
 	lcd {

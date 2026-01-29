@@ -1,0 +1,60 @@
+#!/bin/sh
+#
+# hwclock    Synchronize system time with hardware clock
+#
+
+HWCLOCK=/sbin/hwclock
+# Minimum valid year (build year)
+MIN_YEAR=2026
+
+case "$1" in
+  start)
+	echo "Starting hwclock: Reading system time from RTC"
+	if [ -c /dev/rtc0 ]; then
+		# Read time from RTC
+		$HWCLOCK --hctosys --utc 2>/dev/null
+
+		# Check if RTC time is valid (year >= MIN_YEAR)
+		CURRENT_YEAR=$(date +%Y)
+		if [ "$CURRENT_YEAR" -lt "$MIN_YEAR" ]; then
+			echo "RTC time invalid (year $CURRENT_YEAR < $MIN_YEAR)"
+			echo "Setting initial time to build date: $MIN_YEAR-01-27 12:00:00"
+			date -s "$MIN_YEAR-01-27 12:00:00" >/dev/null 2>&1
+			$HWCLOCK --systohc --utc 2>/dev/null
+			echo "RTC initialized with build date. Chrony will sync from NTP."
+		else
+			echo "System time synchronized from hardware clock (year $CURRENT_YEAR)"
+		fi
+	else
+		echo "Warning: /dev/rtc0 not found"
+		# Set reasonable default if no RTC
+		CURRENT_YEAR=$(date +%Y)
+		if [ "$CURRENT_YEAR" -lt "$MIN_YEAR" ]; then
+			echo "Setting fallback time to build date"
+			date -s "$MIN_YEAR-01-27 12:00:00" >/dev/null 2>&1
+		fi
+	fi
+	;;
+  stop)
+	echo "Stopping hwclock: Saving system time to RTC"
+	if [ -c /dev/rtc0 ]; then
+		# Only save if time is valid
+		CURRENT_YEAR=$(date +%Y)
+		if [ "$CURRENT_YEAR" -ge "$MIN_YEAR" ]; then
+			$HWCLOCK --systohc --utc 2>/dev/null
+			echo "Hardware clock synchronized from system time"
+		else
+			echo "Skipping RTC update: system time invalid (year $CURRENT_YEAR)"
+		fi
+	fi
+	;;
+  restart|reload)
+	"$0" stop
+	"$0" start
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?

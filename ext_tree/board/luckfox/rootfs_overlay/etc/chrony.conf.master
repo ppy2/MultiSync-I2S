@@ -1,0 +1,45 @@
+# Chrony configuration for MASTER node
+# Sync time from internet NTP and serve to slave
+
+# NTP servers from pool.ntp.org project
+pool pool.ntp.org iburst maxsources 4
+pool time.cloudflare.com iburst maxsources 2
+
+# Record the rate at which the system clock gains/losses time
+driftfile /var/lib/chrony/drift
+
+# Enable kernel synchronization of the real-time clock (RTC)
+# Chrony will update RTC every 11 minutes when synchronized
+rtcsync
+
+# Allow large time steps in the first 3 updates
+# Essential when booting with incorrect time from RTC
+makestep 1.0 3
+
+# After losing sync, allow one large step to correct time
+makestep 0.1 -1
+
+# Faster convergence
+maxslewrate 1000.0
+
+# Allow NTP client access from local network (for slave node)
+allow 0.0.0.0/0
+
+# Minimum number of sources required
+minsources 1
+
+# Continue serving time even if not synchronized
+# This allows slave to sync even when master is offline
+local stratum 10
+
+# Directory for NTS keys and state
+ntsdumpdir /var/lib/chrony
+
+# Log directory
+logdir /var/log/chrony
+
+# Log selection of time sources
+log measurements statistics tracking
+
+# Maximum clock frequency error
+maxupdateskew 100.0

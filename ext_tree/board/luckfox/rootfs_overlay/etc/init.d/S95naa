@@ -1,0 +1,36 @@
+#!/bin/sh
+
+start() {
+    printf "Starting NAA: "
+
+    # Use drain wrapper on both nodes for synchronized stop behavior
+    # Both master and slave will DROP instead of DRAIN for instant stop
+    if [ -f /usr/lib/libasound_nodrain.so ]; then
+        LD_PRELOAD=/usr/lib/libasound_nodrain.so /usr/sbin/networkaudiod > /dev/null 2>&1 &
+    else
+        /usr/sbin/networkaudiod > /dev/null 2>&1 &
+    fi
+
+    sleep 0.5
+    if [ -f /tmp/mixer_control_cache ]; then
+        MIXER=$(cat /tmp/mixer_control_cache | cut -d, -f1 | tr -d "'")
+        [ -n "$MIXER" ] && amixer set "$MIXER" unmute 2>/dev/null
+    fi
+    }
+stop() {
+    killall -9 networkaudiod
+}
+restart() {
+	stop
+	start
+}
+case "$1" in
+  start|stop|restart)
+	"$1"
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?

@@ -49,7 +49,7 @@
 	        rockchip,volume-max = <100>;         
 	        rockchip,volume-default = <100>;     
 		mute-gpios = <&gpio1 RK_PD3 GPIO_ACTIVE_HIGH>;
-		mute-inv-gpios = <&gpio2 RK_PA5 GPIO_ACTIVE_HIGH>;
+		mute-inv-gpios = <&gpio3 RK_PC6 GPIO_ACTIVE_HIGH>;
 		dsd-enable-gpios = <&gpio1 RK_PD0 GPIO_ACTIVE_HIGH>;
 		freq-domain-gpios = <&gpio1 RK_PD1 GPIO_ACTIVE_HIGH>;
                 pinctrl-names = "default";
@@ -137,14 +137,7 @@ i2s80:sound {
 		regulator-boot-on;
 	};
 
-	leds: leds {
-		compatible = "gpio-leds";
-		work_led: work{
-			gpios = <&gpio3 RK_PC6 GPIO_ACTIVE_HIGH>;
-			linux,default-trigger = "activity";
-			default-state = "on";
-		};	
-	};
+	// LED removed - GPIO3_PC6 used by mute-inv-gpios for mute indication
 };
 
 &cpu0 {

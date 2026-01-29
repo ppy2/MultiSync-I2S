@@ -6,7 +6,7 @@
 
 / {
 	chosen {
-		bootargs = "earlycon=uart8250,mmio32,0xff4c0000 console=ttyFIQ0 root=/dev/mmcblk1p7 rootwait snd_soc_core.prealloc_buffer_size_kbytes=1024 coherent_pool=2M";
+		bootargs = "root=/dev/mmcblk1p7 rootwait snd_soc_core.prealloc_buffer_size_kbytes=1024 coherent_pool=2M";
 	};
 
 
@@ -70,7 +70,7 @@ i2s0_8ch: i2s@ffae0000 {
     	rockchip,cru = <&cru>;
     	rockchip,grf = <&grf>;
     	mute-gpios = <&gpio1 RK_PD3 GPIO_ACTIVE_HIGH>;
-    	mute-inv-gpios = <&gpio2 RK_PA5 GPIO_ACTIVE_HIGH>;
+    	mute-inv-gpios = <&gpio3 RK_PC6 GPIO_ACTIVE_HIGH>;
     	dsd-enable-gpios = <&gpio1 RK_PD0 GPIO_ACTIVE_HIGH>;
     	freq-domain-gpios = <&gpio1 RK_PD1 GPIO_ACTIVE_HIGH>;
     	pinctrl-names = "default";
@@ -209,14 +209,7 @@ i2s80:sound {
 		regulator-boot-on;
 	};
 
-	leds: leds {
-		compatible = "gpio-leds";
-		work_led: work{
-			gpios = <&gpio3 RK_PC6 GPIO_ACTIVE_HIGH>;
-			linux,default-trigger = "activity";
-			default-state = "on";
-		};	
-	};
+	// LED removed - GPIO3_PC6 used by mute-inv-gpios for mute indication
 };
 
 &cpu0 {

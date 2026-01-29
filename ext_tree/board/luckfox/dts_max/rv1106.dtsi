@@ -942,7 +942,7 @@ mmc0 {
 		pinctrl-0 = <&pwm8m0_pins>;
 		clocks = <&cru CLK_PWM2_PERI>, <&cru PCLK_PWM2_PERI>;
 		clock-names = "pwm", "pclk";
-		status = "disabled";
+		status = "okay";
 	};
 
 	pwm9: pwm@ff490010 {
@@ -979,7 +979,7 @@ mmc0 {
 		pinctrl-0 = <&pwm11m0_pins>;
 		clocks = <&cru CLK_PWM2_PERI>, <&cru PCLK_PWM2_PERI>;
 		clock-names = "pwm", "pclk";
-		status = "disabled";
+		status = "disable";
 	};
 
 	uart0: serial@ff4a0000 {
