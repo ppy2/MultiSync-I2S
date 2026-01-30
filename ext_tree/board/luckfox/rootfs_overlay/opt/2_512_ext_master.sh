@@ -9,7 +9,7 @@ ln -s /etc/networkaudiod/onstart_master.sh /etc/networkaudiod/onstart
 
 # Configure chrony for master mode (NTP server)
 echo "Configuring chrony for master mode (NTP server)..."
-cp /etc/chrony.conf.master /etc/chrony.conf
+cat /etc/chrony.conf.master  > /etc/chrony.conf
 /etc/init.d/S60chronyd restart
 echo "Chrony configured as NTP server for slave node"
 

@@ -1,42 +1,29 @@
-# Chrony configuration for SLAVE node
-# Sync time from master node via avahi
+# Chrony configuration for SLAVE node - OPTIMIZED
+# Sync ONLY from master node for nanosecond precision
 
-# Use master node as primary NTP source
-# minpoll 1 = poll every 2 seconds (2^1), maxpoll 4 = max every 16 seconds (2^4)
-# Balanced for fast sync without excessive network traffic
-# Poll more frequently for better stability
-# minpoll 0 = every 1 second, maxpoll 2 = max every 4 seconds
-server master.lan iburst prefer minpoll 1 maxpoll 2 
-#xleave
+# Use ONLY master node as NTP source
+# minpoll 2 = poll every 4 seconds, maxpoll 6 = max every 64 seconds
+server master.lan iburst prefer minpoll 2 maxpoll 6
 
-# Fallback to internet NTP if master is unreachable
-pool pool.ntp.org iburst maxsources 2 minpoll 6 maxpoll 10
+# DO NOT use internet NTP - causes offset swings
+# Uncomment only as backup if master unreachable
+#pool pool.ntp.org iburst maxsources 1 minpoll 8 maxpoll 10
 
-# Record the rate at which the system clock gains/losses time
+# Record clock drift
 driftfile /var/lib/chrony/drift
 
-# Enable kernel synchronization of the real-time clock (RTC)
-# Chrony will update RTC every 11 minutes when synchronized
+# Sync kernel RTC
 rtcsync
 
-# Allow large time steps in the first 3 updates only
-# Essential when booting with incorrect time from RTC
+# Allow large steps in first 3 updates
 makestep 1.0 3
 
-# Minimum number of sources required (allow single source - master)
+# Single source OK
 minsources 1
 
-# Continue serving time even if not synchronized
-local stratum 10
-
-# Directory for NTS keys and state
-ntsdumpdir /var/lib/chrony
-
-# Log directory
+# Logging
 logdir /var/log/chrony
-
-# Log selection of time sources
 log measurements statistics tracking
 
-# Maximum clock frequency error
-maxupdateskew 100.0
+# Local stratum when not synced
+local stratum 10

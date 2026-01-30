@@ -13,7 +13,7 @@ ln -s /etc/networkaudiod/onstart_slave.sh /etc/networkaudiod/onstart
 
 # Configure chrony to sync from master via NTP (nanosecond precision)
 echo "Configuring chrony for slave mode (NTP from master)..."
-cp /etc/chrony.conf.slave /etc/chrony.conf
+cat /etc/chrony.conf.slave  > /etc/chrony.conf
 /etc/init.d/S60chronyd restart
 echo "Chrony configured - nanosecond precision time sync from master"
 
