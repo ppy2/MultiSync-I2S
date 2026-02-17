@@ -87,7 +87,7 @@ Master                    Slave(s)
 BCK   (GPIO2_A0) ──────► BCK   (GPIO2_A0)
 LRCLK (GPIO2_A1) ──────► LRCLK (GPIO2_A1)
 MCLK  (GPIO2_A2) ──────► MCLK  (GPIO2_A2)
-GND   ───────────────────GND
+GND   ────────────────── GND
 ```
 
 **Important:**
@@ -280,8 +280,6 @@ ext_tree/
 │       └── post-build.sh           # DTB packaging
 ├── configs/
 │   └── luckfox_pico_max_defconfig  # Buildroot config
-├── package/
-│   └── sync-node/                  # Frame sync daemon
 └── patches/
     └── linux_rv1106.patch          # Kernel driver modifications
 ```
