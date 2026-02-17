@@ -160,10 +160,21 @@ Each node must be configured as either **master** or **slave** using the configu
 /opt/configure.sh ext 1024 slave
 ```
 
-**Single node with internal PLL (no external clock needed):**
+**2-node system with internal PLL (no external oscillators needed):**
+```bash
+# Node 0 — master (PLL generates MCLK internally)
+/opt/configure.sh pll 1024 master
+
+# Node 1 — slave (receives MCLK/BCK/LRCLK from master via wires)
+/opt/configure.sh pll 1024 slave
+```
+
+**Single standalone node (no slaves):**
 ```bash
 /opt/configure.sh pll 1024 master
 ```
+
+> **Note:** In PLL mode, the master generates MCLK from its internal PLL. Slave nodes still work — they receive all clocks (MCLK, BCK, LRCLK) from the master via the same physical wiring as in EXT mode. The only difference is the clock source on the master side.
 
 The script:
 1. Writes clock mode and MCLK multiplier to `/etc/i2s.conf`
