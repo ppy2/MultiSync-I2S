@@ -1,0 +1,29 @@
+#!/bin/sh
+# Read hostname assigned by avahi after conflict resolution
+# If another "slave" is already on the network, avahi picks "slave-2", etc.
+# Persist the resolved name so it's stable across reboots.
+
+case "$1" in
+  start)
+    ROLE=$(cat /etc/hostname 2>/dev/null)
+    [ "$ROLE" = "master" ] && exit 0
+
+    # Wait for avahi mDNS probing + conflict resolution
+    sleep 3
+
+    # Query avahi's resolved hostname via D-Bus
+    AVAHI_HOST=$(dbus-send --system --print-reply --dest=org.freedesktop.Avahi \
+        / org.freedesktop.Avahi.Server.GetHostName 2>/dev/null | \
+        grep string | sed 's/.*"\(.*\)"/\1/')
+
+    if [ -n "$AVAHI_HOST" ]; then
+        hostname "$AVAHI_HOST"
+        # Persist only if changed (minimize flash writes)
+        CURRENT=$(cat /etc/hostname 2>/dev/null)
+        if [ "$AVAHI_HOST" != "$CURRENT" ]; then
+            echo "$AVAHI_HOST" > /etc/hostname
+        fi
+        printf "Hostname: %s\n" "$AVAHI_HOST"
+    fi
+    ;;
+esac
