@@ -124,6 +124,16 @@ build.sh
 
 The firmware image is produced in `buildroot/output/images/`.
 
+### Node Access
+
+Connect to any node via SSH:
+
+```bash
+ssh root@<node-ip>
+```
+
+Default password: `multisync`
+
 ### Node Configuration
 
 Each node must be configured as either **master** or **slave** using the configuration script:
