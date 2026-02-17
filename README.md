@@ -59,13 +59,13 @@ This cluster guarantees **zero inter-channel timing error** because all nodes sh
 
 | Signal | GPIO | Pin | Direction (Master) | Direction (Slave) |
 |--------|------|-----|--------------------|-------------------|
-| BCK (Bit Clock) | GPIO2_A0 | 36 | Output | **Input** |
-| LRCLK (Frame Clock) | GPIO2_A1 | 35 | Output | **Input** |
-| MCLK (Master Clock) | GPIO2_A2 | 34 | Output | **Input** |
-| SDO0 (Data ch0-1) | GPIO2_A4 | 32 | Output | Output |
-| SDO1 (Data ch2-3) | GPIO2_A7 | 29 | Output | Output |
-| SDO2 (Data ch4-5) | GPIO2_A6 | 30 | Output | Output |
-| SDO3 (Data ch6-7) | GPIO2_A3 | 33 | Output | Output |
+| BCK (Bit Clock) | GPIO2_A0 | 24 | Output | **Input** |
+| LRCLK (Frame Clock) | GPIO2_A1 | 25 | Output | **Input** |
+| MCLK (Master Clock) | GPIO2_A2 | 26 | Output | **Input** |
+| SDO0 (Data ch0-1) | GPIO2_A4 | 21 | Output | Output |
+| SDO1 (Data ch2-3) | GPIO2_A7 | 34 | Output | Output |
+| SDO2 (Data ch4-5) | GPIO2_A6 | 29 | Output | Output |
+| SDO3 (Data ch6-7) | GPIO2_A3 | 27 | Output | Output |
 
 ### Control Signal Pinout
 
