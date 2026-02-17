@@ -72,10 +72,10 @@ This cluster guarantees **zero inter-channel timing error** because all nodes sh
 | Signal | GPIO | Pin | Function |
 |--------|------|-----|----------|
 | MUTE | GPIO1_D3 | 10 | Mute output (active high) |
-| MUTE_INV | GPIO3_C6 | 22 | Inverted mute for LED indicator |
+| MUTE_INV | GPIO3_C6 | 22 | Inverted mute (active low) |
 | DSD_ON | GPIO1_D0 | 19 | DSD mode enable |
 | MCLK_SEL | GPIO1_D1 | 20 | Clock domain select (44.1/48kHz) |
-| FREQ_INV | GPIO1_C5 |  6 | Inverted clock domain indicator |
+| FREQ_INV | GPIO1_C5 |  6 | Inverted clock domain select |
 
 <img width="410" height="605" alt="Fox" src="https://github.com/user-attachments/assets/8bf25694-e08b-4c7d-8d9f-38f191704a55" />
 
