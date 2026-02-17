@@ -77,7 +77,7 @@ This cluster guarantees **zero inter-channel timing error** because all nodes sh
 | MCLK_SEL | GPIO1_D1 | Clock domain select (44.1/48kHz) |
 | FREQ_INV | GPIO1_C5 | Inverted clock domain indicator |
 
-<img width="205" height="302" alt="Fox" src="https://github.com/user-attachments/assets/8bf25694-e08b-4c7d-8d9f-38f191704a55" />
+<img width="410" height="605" alt="Fox" src="https://github.com/user-attachments/assets/8bf25694-e08b-4c7d-8d9f-38f191704a55" />
 
 ### Inter-Node Wiring
 
