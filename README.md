@@ -119,9 +119,7 @@ GPIO1_D1 (MCLK_SEL) selects between them via a `gpio-mux-clock`. The driver swit
 ### Building
 
 ```bash
-cd /opt/multichannel/buildroot
-make luckfox_pico_max_defconfig
-make
+build.sh
 ```
 
 The firmware image is produced in `buildroot/output/images/`.
