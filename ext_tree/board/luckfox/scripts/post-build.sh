@@ -16,7 +16,7 @@ cp $LINUX_DIR/arch/arm/boot/dts/rv1106_512_ext_full.dtb $BINARIES_DIR/
 cp $LINUX_DIR/arch/arm/boot/dts/rv1106_ext.dtb $TARGET_DIR/data/boot/1024_ext.dtb
 cp $LINUX_DIR/arch/arm/boot/dts/rv1106_pll.dtb $TARGET_DIR/data/boot/1024_pll.dtb
 cp $LINUX_DIR/arch/arm/boot/dts/rv1106_512_ext.dtb $TARGET_DIR/data/boot/512_ext.dtb
-#cp $LINUX_DIR/arch/arm/boot/dts/rv1106_ext_full.dtb $TARGET_DIR/data/boot/1024_ext_full.dtb
+cp $LINUX_DIR/arch/arm/boot/dts/rv1106_ext_full.dtb $TARGET_DIR/data/boot/1024_ext_full.dtb
 cp $LINUX_DIR/arch/arm/boot/dts/rv1106_512_ext_full.dtb $TARGET_DIR/data/boot/512_ext_full.dtb
 
 cd $BINARIES_DIR
@@ -36,7 +36,7 @@ rm -f $TARGET_DIR/etc/init.d/S49chronyd
 rm -f -r $TARGET_DIR/etc/alsa
 #rm -f -r $(TARGET_DIR/var/db
 sed -i "s/#PermitRootLogin prohibit-password/PermitRootLogin yes/g" $TARGET_DIR/etc/ssh/sshd_config
-wget https://curl.se/ca/cacert.pem -O $TARGET_DIR/etc/ssl/certs/ca-certificates.crt
+#wget https://curl.se/ca/cacert.pem -O $TARGET_DIR/etc/ssl/certs/ca-certificates.crt
 
 # Remove GDB Python helper files (they prevent buildroot's strip from working)
 find $TARGET_DIR -name "*-gdb.py" -delete

@@ -13,12 +13,12 @@ CHRONY_ARGS=""
 
 start() {
 	printf "Starting %s: " "$DAEMON"
-	iptables -t mangle -A OUTPUT -p udp --dport 123 -j DSCP --set-dscp-class EF
-	iptables -t mangle -A OUTPUT -p udp --sport 123 -j DSCP --set-dscp-class EF
-	iptables -t mangle -A OUTPUT -p udp --dport 123 -j TOS --set-tos 0x10
-	iptables -t mangle -A OUTPUT -p udp --sport 123 -j TOS --set-tos 0x10
+#	iptables -t mangle -A OUTPUT -p udp --dport 123 -j DSCP --set-dscp-class EF
+#	iptables -t mangle -A OUTPUT -p udp --sport 123 -j DSCP --set-dscp-class EF
+#	iptables -t mangle -A OUTPUT -p udp --dport 123 -j TOS --set-tos 0x10
+#	iptables -t mangle -A OUTPUT -p udp --sport 123 -j TOS --set-tos 0x10
 	# shellcheck disable=SC2086 # we need the word splitting
-	start-stop-daemon --start --pidfile "$PIDFILE" \
+	start-stop-daemon  --start --pidfile "$PIDFILE" \
 		--exec "/usr/sbin/$DAEMON" \
 		-- $CHRONY_ARGS
 	chronyc burst 4/4
@@ -33,11 +33,11 @@ start() {
 
 stop() {
 	printf "Stopping %s: " "$DAEMON"
-	iptables -t mangle -D OUTPUT -p udp --dport 123 -j DSCP --set-dscp-class EF
-	iptables -t mangle -D OUTPUT -p udp --sport 123 -j DSCP --set-dscp-class EF
-	iptables -t mangle -D OUTPUT -p udp --dport 123 -j TOS --set-tos 0x10
-	iptables -t mangle -D OUTPUT -p udp --sport 123 -j TOS --set-tos 0x10
-	start-stop-daemon -S -N "-18" --stop --pidfile "$PIDFILE" \
+#	iptables -t mangle -D OUTPUT -p udp --dport 123 -j DSCP --set-dscp-class EF
+#	iptables -t mangle -D OUTPUT -p udp --sport 123 -j DSCP --set-dscp-class EF
+#	iptables -t mangle -D OUTPUT -p udp --dport 123 -j TOS --set-tos 0x10
+#	iptables -t mangle -D OUTPUT -p udp --sport 123 -j TOS --set-tos 0x10
+	start-stop-daemon  --stop --pidfile "$PIDFILE" \
 		--exec "/usr/sbin/$DAEMON"
 	status=$?
 	if [ "$status" -eq 0 ]; then

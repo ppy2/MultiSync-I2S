@@ -52,18 +52,20 @@
 		mute-inv-gpios = <&gpio3 RK_PC6 GPIO_ACTIVE_HIGH>;
 		dsd-enable-gpios = <&gpio1 RK_PD0 GPIO_ACTIVE_HIGH>;
 		freq-domain-gpios = <&gpio1 RK_PD1 GPIO_ACTIVE_HIGH>;
+		freq-domain-inv-gpios = <&gpio1 RK_PC5 GPIO_ACTIVE_HIGH>;
                 pinctrl-names = "default";
-	        pinctrl-0 = <&i2s0_lrck 
-				&i2s0_mclk 
-				&i2s0_sclk 
-				&i2s0_sdi0 
-				&i2s0_sdo0 
-				&i2s0_sdo1_sdi3 
-				&i2s0_sdo2_sdi2 
-				&i2s0_sdo3_sdi1 
+	        pinctrl-0 = <&i2s0_lrck
+				&i2s0_mclk
+				&i2s0_sclk
+				&i2s0_sdi0
+				&i2s0_sdo0
+				&i2s0_sdo1_sdi3
+				&i2s0_sdo2_sdi2
+				&i2s0_sdo3_sdi1
 				&mute_gpio
 				&mute_inv_gpio
-				&dsd_on_gpio>;
+				&dsd_on_gpio
+				&freq_domain_inv_gpio>;
 	        status = "okay";                     
 	};
 

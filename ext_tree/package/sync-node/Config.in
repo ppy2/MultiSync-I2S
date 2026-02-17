@@ -1,0 +1,6 @@
+config BR2_PACKAGE_SYNC_NODE
+	bool "sync-node"
+	help
+	  Lightweight UDP-based I2S sync daemon for shared-clock
+	  multi-node audio. Measures drift between master and slave
+	  frame counters, applies drift_ppb correction.

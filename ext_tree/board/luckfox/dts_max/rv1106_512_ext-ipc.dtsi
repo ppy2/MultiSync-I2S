@@ -73,6 +73,7 @@ i2s0_8ch: i2s@ffae0000 {
     	mute-inv-gpios = <&gpio3 RK_PC6 GPIO_ACTIVE_HIGH>;
     	dsd-enable-gpios = <&gpio1 RK_PD0 GPIO_ACTIVE_HIGH>;
     	freq-domain-gpios = <&gpio1 RK_PD1 GPIO_ACTIVE_HIGH>;
+    	freq-domain-inv-gpios = <&gpio1 RK_PC5 GPIO_ACTIVE_HIGH>;
     	pinctrl-names = "default", "idle";
     	pinctrl-0 = <&i2s0_lrck
         	&i2s0_mclk
@@ -85,7 +86,8 @@ i2s0_8ch: i2s@ffae0000 {
         	&mute_gpio
         	&mute_inv_gpio
         	&dsd_on_gpio
-        	&mclk_sel_gpio>;
+        	&mclk_sel_gpio
+        	&freq_domain_inv_gpio>;
     	pinctrl-1 = <&i2s0_lrck_idle
         	&i2s0_mclk_idle
         	&i2s0_sclk_idle
@@ -97,7 +99,8 @@ i2s0_8ch: i2s@ffae0000 {
         	&mute_gpio
         	&mute_inv_gpio
         	&dsd_on_gpio
-        	&mclk_sel_gpio>;
+        	&mclk_sel_gpio
+        	&freq_domain_inv_gpio>;
     	status = "disable";
 };
 

@@ -1,45 +1,49 @@
 # Chrony configuration for MASTER node
-# Sync time from internet NTP and serve to slave
+# Ultra-smooth sync: slave relies on our clock stability
 
-# NTP servers from pool.ntp.org project
-pool pool.ntp.org iburst maxsources 4
-pool time.cloudflare.com iburst maxsources 2
+# NTP servers - poll VERY slowly to avoid chasing internet jitter
+# minpoll 8 = 256s, maxpoll 12 = 4096s (~1 hour)
+pool pool.ntp.org maxsources 4 minpoll 8 maxpoll 12
+pool time.cloudflare.com maxsources 2 minpoll 8 maxpoll 12
 
-# Record the rate at which the system clock gains/losses time
+# Record clock drift for smooth startup
 driftfile /var/lib/chrony/drift
 
-# Enable kernel synchronization of the real-time clock (RTC)
-# Chrony will update RTC every 11 minutes when synchronized
+# Sync kernel RTC
 rtcsync
 
-# Allow large time steps in the first 3 updates
-# Essential when booting with incorrect time from RTC
+# Allow steps ONLY during first 3 updates after boot
+# (RTC could be minutes/hours off after power loss)
 makestep 1.0 3
 
-# After losing sync, allow one large step to correct time
-makestep 0.1 -1
+# NO makestep after boot! Only smooth slewing.
+# Old: makestep 0.1 -1  <-- REMOVED: caused time jumps
 
-# Faster convergence
-maxslewrate 1000.0
+# Very slow slew rate: max 10 ppm frequency adjustment
+# At 10 ppm, correcting 1ms takes 100 seconds - very smooth
+maxslewrate 10
 
-# Allow NTP client access from local network (for slave node)
+# Spread corrections over longer periods
+# Default 3.0, higher = more gradual corrections
+corrtimeratio 20
+
+# Limit frequency adjustment rate
+# Don't chase short-term NTP jitter
+maxupdateskew 20.0
+
+# Serve smooth time to slave
+# Smooth out our own corrections over 400 seconds
+# so slave sees ultra-stable time source
+smoothtime 400 0.001 leaponly
+
+# Allow NTP client access from any network (for slave)
 allow 0.0.0.0/0
 
-# Minimum number of sources required
+# Minimum sources
 minsources 1
 
-# Continue serving time even if not synchronized
-# This allows slave to sync even when master is offline
+# Serve time even when not fully synced
 local stratum 10
 
-# Directory for NTS keys and state
+# NTS keys
 ntsdumpdir /var/lib/chrony
-
-# Log directory
-logdir /var/log/chrony
-
-# Log selection of time sources
-log measurements statistics tracking
-
-# Maximum clock frequency error
-maxupdateskew 100.0

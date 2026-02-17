@@ -1,0 +1,8 @@
+#!/bin/sh
+#
+# Network optimization for high bandwidth audio streaming
+# DISABLED: large TCP buffers cause bufferbloat and worsen audio sync
+# ethtool -G crashes RV1106 Ethernet driver
+#
+
+exit 0
