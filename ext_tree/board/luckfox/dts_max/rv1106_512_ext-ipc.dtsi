@@ -65,7 +65,7 @@ i2s0_8ch: i2s@ffae0000 {
 
     	rockchip,clk-trcm = <1>;
     	rockchip,playback-only;
-    	rockchip,i2s-tx-route = <2 3 0 1>;
+    	rockchip,i2s-tx-route = <0 1 2 3>;
     	#sound-dai-cells = <0>;
     	rockchip,cru = <&cru>;
     	rockchip,grf = <&grf>;
