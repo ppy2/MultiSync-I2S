@@ -2,6 +2,8 @@
 
 **Bit-synchronized multichannel I2S audio cluster for active speaker systems**
 
+[Русская версия](README.ru.md)
+
 A scalable multichannel audio platform built on [Luckfox Pico MAX](https://wiki.luckfox.com/Luckfox-Pico-Pro-Max) (Rockchip RV1106) single-board computers. Multiple nodes share I2S clocks via physical wiring, guaranteeing **bit-perfect synchronization** across all channels — critical for multi-way active crossover systems.
 
 ## Key Features
