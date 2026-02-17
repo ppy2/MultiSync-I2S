@@ -32,23 +32,23 @@ This cluster guarantees **zero inter-channel timing error** because all nodes sh
 ┌─────────────────────────────────────────────────────────┐
 │  HQPlayer (PC/Mac)                                      │
 │  Multichannel output: 2/4/6/8ch per NAA endpoint        │
-└────────┬──────────────────────┬──────────────────────────┘
+└────────┬──────────────────────┬─────────────────────────┘
          │ TCP/IP               │ TCP/IP
          ▼                      ▼
-┌─────────────────┐    ┌─────────────────┐
-│  Node 0 (MASTER)│    │  Node 1 (SLAVE) │    ...up to 16 nodes
-│  Luckfox Pico   │    │  Luckfox Pico   │
-│  MAX            │    │  MAX            │
-│                 │    │                 │
-│  NAA ─► ALSA    │    │  NAA ─► ALSA    │
-│         │       │    │         │       │
-│     I2S DMA     │    │     I2S DMA     │
-│   ┌─────────┐   │    │   ┌─────────┐   │
-│   │SDO0..SDO3│  │    │   │SDO0..SDO3│  │
-│   │BCK LRCLK│───┼────┼──►│BCK LRCLK│   │
-│   │MCLK     │───┼────┼──►│MCLK     │   │
-│   └─────────┘   │    │   └─────────┘   │
-└─────────────────┘    └─────────────────┘
+┌──────────────────┐    ┌──────────────────┐
+│  Node 0 (MASTER) │    │  Node 1 (SLAVE)  │    ...up to 16 nodes
+│  Luckfox Pico    │    │  Luckfox Pico    │
+│  MAX             │    │  MAX             │
+│                  │    │                  │
+│  NAA ─► ALSA     │    │  NAA ─► ALSA     │
+│         │        │    │         │        │
+│     I2S DMA      │    │     I2S DMA      │
+│   ┌──────────┐   │    │   ┌──────────┐   │
+│   │SDO0..SDO3│   │    │   │SDO0..SDO3│   │
+│   │BCK LRCLK │───┼────┼──►│BCK LRCLK │   │
+│   │MCLK      │───┼────┼──►│MCLK      │   │
+│   └──────────┘   │    │   └──────────┘   │
+└──────────────────┘    └──────────────────┘
         │                       │
    8ch to DAC(s)           8ch to DAC(s)
 ```
