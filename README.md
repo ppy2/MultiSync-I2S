@@ -81,7 +81,7 @@ This cluster guarantees **zero inter-channel timing error** because all nodes sh
 
 ### Inter-Node Wiring
 
-Connect **master → all slaves** with short wires (< 15cm recommended):
+Connect **master → all slaves** with short wires (< 5cm recommended):
 
 ```
 Master                    Slave(s)
