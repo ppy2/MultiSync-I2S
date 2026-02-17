@@ -9,6 +9,6 @@ if [ ! -f "$TX_RESET" ]; then
 fi
 
 echo "1" > "$TX_RESET"
-sleep 0.3
+sleep 0.4
 
 exit 0
