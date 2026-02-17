@@ -2,7 +2,7 @@
 
 **Bit-synchronized multichannel I2S audio cluster for active speaker systems**
 
-A scalable multichannel audio platform built on [Luckfox Pico MAX](https://wiki.luckfox.com/Luckfox-Pico/Luckfox-Pico-Max-Mini) (Rockchip RV1106) single-board computers. Multiple nodes share I2S clocks via physical wiring, guaranteeing **bit-perfect synchronization** across all channels — critical for multi-way active crossover systems.
+A scalable multichannel audio platform built on [Luckfox Pico MAX](https://wiki.luckfox.com/Luckfox-Pico-Pro-Max) (Rockchip RV1106) single-board computers. Multiple nodes share I2S clocks via physical wiring, guaranteeing **bit-perfect synchronization** across all channels — critical for multi-way active crossover systems.
 
 ## Key Features
 
@@ -114,7 +114,7 @@ GPIO1_D1 (MCLK_SEL) selects between them via a `gpio-mux-clock`. The driver swit
 
 ### Prerequisites
 
-- [HQPlayer Desktop or Embedded](https://www.signalyst.com/consumer.html) (multichannel license)
+- HQPlayer Desktop or Embedded
 - Ethernet network connecting all nodes and HQPlayer host
 - Luckfox Pico MAX boards flashed with this firmware
 
