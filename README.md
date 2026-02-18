@@ -14,6 +14,7 @@ A scalable multichannel audio platform built on [Luckfox Pico MAX](https://wiki.
 - **PCM up to 32bit/192kHz** guaranteed (8ch per node)
 - **PCM up to 32bit/384kHz** in 4ch mode (per node, not fully tested)
 - **DSD up to DSD256** native playback with automatic PCM/DSD switching
+- **Flexible clocking** — external oscillators (EXT mode) or built-in RV1106 PLL (PLL mode). The on-chip PLL delivers surprisingly high audio quality — some audiophile experts prefer it over expensive external audio clocks
 - **Dual clock domain** — 44.1kHz and 48kHz families with automatic GPIO-based oscillator switching
 - **Bit-perfect** — no resampling, no mixing, direct DMA-to-I2S path
 - **Network Audio** — [HQPlayer NAA](https://www.signalyst.com/naa.html) protocol over Ethernet
