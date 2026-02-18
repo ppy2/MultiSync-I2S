@@ -206,7 +206,7 @@ Each node appears as a separate NAA endpoint on the network. Configure HQPlayer'
 1. **Backend:** Combo
 2. **Device:** Select each node's NAA endpoint
 3. **Channels per endpoint:** 2, 4, 6, or 8 (depending on your speaker configuration)
-4. **Buffer time:** 100 ms
+4. **Buffer time:** 1 ms
 5. **Clock mode:** Time
 
 | HQPlayer Setting | Value | Notes |
