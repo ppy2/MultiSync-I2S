@@ -1,4 +1,0 @@
-config BR2_PACKAGE_APLAYER
-	bool "aplayer"
-        help
-	  "aplayer"

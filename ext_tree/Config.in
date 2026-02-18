@@ -1,6 +1,4 @@
 menu "Custom packages"
 	source "../ext_tree/package/alsa-drain-wrapper/Config.in"
 	source "../ext_tree/package/naa/Config.in"
-	source "../ext_tree/package/zerotier-one/Config.in"
-	source "../ext_tree/package/sync-node/Config.in"
 endmenu

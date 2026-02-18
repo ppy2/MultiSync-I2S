@@ -1,11 +1,9 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Buildroot -g87cc3504 Configuration
+# Buildroot -g0139fc8c-dirty Configuration
 #
 BR2_HAVE_DOT_CONFIG=y
 BR2_EXTERNAL_NAMES="ext_tree"
-BR2_EXTERNAL_ext_tree_PATH="/opt/multichannel/ext_tree"
-BR2_EXTERNAL_ext_tree_VERSION="-g87cc3504"
 BR2_HOST_GCC_AT_LEAST_4_9=y
 BR2_HOST_GCC_AT_LEAST_5=y
 BR2_HOST_GCC_AT_LEAST_6=y
@@ -4360,5 +4358,3 @@ BR2_TARGET_UBOOT_CUSTOM_PATCH_DIR=""
 #
 BR2_PACKAGE_ALSA_DRAIN_WRAPPER=y
 BR2_PACKAGE_NAA=y
-# BR2_PACKAGE_ZEROTIERONE is not set
-# BR2_PACKAGE_SYNC_NODE is not set

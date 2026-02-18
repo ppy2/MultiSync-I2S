@@ -1,4 +1,0 @@
-config BR2_PACKAGE_APRENDERER
-	bool "aprenderer"
-        help
-	  "aprenderer"
