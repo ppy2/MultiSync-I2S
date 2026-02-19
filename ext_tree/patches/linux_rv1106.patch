@@ -3832,8 +3832,8 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
 +            buf = (unsigned int *)(runtime->dma_area +
 +                  frames_to_bytes(runtime, pos));
 +
-+            dev_info(i2s_tdm->dev,
-+                     "MON: %s hw=%ld app=%ld dly=%ld FL=0x%08x t=%lld d[%ld]=%08x,%08x,%08x,%08x\n",
++            dev_dbg(i2s_tdm->dev,
++                    "MON: %s hw=%ld app=%ld dly=%ld FL=0x%08x t=%lld d[%ld]=%08x,%08x,%08x,%08x\n",
 +                     i2s_tdm->is_master_mode ? "M" : "S",
 +                     (long)runtime->status->hw_ptr,
 +                     (long)runtime->control->appl_ptr,
