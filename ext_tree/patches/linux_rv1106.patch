@@ -52,7 +52,7 @@ diff -Naur --no-dereference original_dir/sound/soc/codecs/dummy-codec.c modified
  };
 diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c modified_dir/sound/soc/rockchip/rockchip_i2s_tdm.c
 --- original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c	2025-07-13 22:11:14.000000000 +0200
-+++ modified_dir/sound/soc/rockchip/rockchip_i2s_tdm.c	2026-02-16 06:41:56.499971121 +0100
++++ modified_dir/sound/soc/rockchip/rockchip_i2s_tdm.c	2026-02-20 07:41:16.941956664 +0100
 @@ -4,18 +4,14 @@
   *
   * Copyright (c) 2018 Rockchip Electronics Co. Ltd.
@@ -107,7 +107,7 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
  
  #define DRV_NAME "rockchip-i2s-tdm"
  
-@@ -39,328 +48,497 @@
+@@ -39,328 +48,498 @@
  #define HAVE_SYNC_RESET
  #endif
  
@@ -279,6 +279,7 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
 +    struct gpio_desc *mute_inv_gpio;  /* Inverted mute signal (GPIO2_A5, pin 69) */
 +    struct gpio_desc *freq_domain_gpio;  /* Frequency domain indicator GPIO (GPIO1_D1) 44.1/48 kHz */
 +    struct gpio_desc *freq_domain_inv_gpio;  /* Inverted freq domain output (GPIO1_C5) */
++    struct gpio_desc *hires_gpio;  /* Hi-Res indicator GPIO (GPIO1_C6) — active for 352.8/384 kHz */
 +    bool freq_domain_invert;        // Invert frequency domain GPIO polarity
 +    
 +    /* MCLK multiplier for switching 512/1024 */
@@ -856,7 +857,7 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
  }
  
  /*
-@@ -369,16 +547,18 @@
+@@ -369,16 +548,18 @@
   */
  static void rockchip_i2s_tdm_sync_reset(struct rk_i2s_tdm_dev *i2s_tdm)
  {
@@ -877,7 +878,7 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
  static inline void rockchip_i2s_tdm_sync_reset(struct rk_i2s_tdm_dev *i2s_tdm)
  {
  }
-@@ -386,57 +566,59 @@
+@@ -386,57 +567,59 @@
  
  static void rockchip_i2s_tdm_reset(struct reset_control *rc)
  {
@@ -979,7 +980,7 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
  }
  
  /*
-@@ -446,2088 +628,3930 @@
+@@ -446,2088 +629,3944 @@
   */
  static void rockchip_i2s_tdm_tx_fifo_padding(struct rk_i2s_tdm_dev *i2s_tdm, bool en)
  {
@@ -2775,6 +2776,12 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
 +
 +    /* Save current rate for drift compensation */
 +    i2s_tdm->current_rate = params_rate(params);
++
++    /* Hi-Res GPIO: active for PCM352.8k and PCM384k */
++    if (i2s_tdm->hires_gpio) {
++        bool hires = (params_rate(params) == 352800 || params_rate(params) == 384000);
++        gpiod_set_value(i2s_tdm->hires_gpio, hires);
++    }
 +
 +    switch (params_format(params)) {
 +    case SNDRV_PCM_FORMAT_S8:
@@ -5850,6 +5857,14 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
 +        i2s_tdm->freq_domain_inv_gpio = NULL;
 +    } else if (i2s_tdm->freq_domain_inv_gpio) {
 +        dev_info(&pdev->dev, "ROCKCHIP_I2S_TDM: Inverted freq domain GPIO (GPIO1_C5) initialized\n");
++    }
++
++    /* Initialize Hi-Res indicator GPIO (GPIO1_C6) */
++    i2s_tdm->hires_gpio = devm_gpiod_get_optional(&pdev->dev, "hires", GPIOD_OUT_LOW);
++    if (IS_ERR(i2s_tdm->hires_gpio)) {
++        i2s_tdm->hires_gpio = NULL;
++    } else if (i2s_tdm->hires_gpio) {
++        dev_info(&pdev->dev, "Hi-Res indicator GPIO initialized\n");
 +    }
 +
 +    of_id = of_match_device(rockchip_i2s_tdm_match, &pdev->dev);
