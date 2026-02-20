@@ -3,7 +3,7 @@
 
 # Master node as sole time source
 # minpoll 2 = 4s, maxpoll 5 = 32s - tight tracking on local network
-server master.local iburst prefer minpoll 2 maxpoll 5
+server master iburst prefer minpoll 2 maxpoll 5
 
 # NO internet NTP - only master
 

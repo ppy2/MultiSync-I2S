@@ -280,7 +280,7 @@ i2s0_8ch {
 		i2s0_lrck: i2s0-lrck {
 			rockchip,pins =
 				/* i2s0_lrck */
-				<2 RK_PA1 2 &pcfg_pull_none_drv7_smt>;
+				<2 RK_PA1 2 &pcfg_pull_none_drv_level_0_smt>;
 		};
 		/omit-if-no-ref/
 		i2s0_mclk: i2s0-mclk {
@@ -300,7 +300,7 @@ i2s0_8ch {
 		i2s0_sclk: i2s0-sclk {
 			rockchip,pins =
 				/* i2s0_sclk_tx */
-				<2 RK_PA0 2 &pcfg_pull_none_drv7_smt>;
+				<2 RK_PA0 2 &pcfg_pull_none_drv_level_0_smt>;
 		};
 		/omit-if-no-ref/
 		i2s0_sdi0: i2s0-sdi0 {
@@ -312,44 +312,44 @@ i2s0_8ch {
 		i2s0_sdo0: i2s0-sdo0 {
 			rockchip,pins =
 				/* i2s0_sdo0 */
-				<2 RK_PA4 2 &pcfg_pull_none_drv7_smt>;
+				<2 RK_PA4 2 &pcfg_pull_none_drv_level_0_smt>;
 		};
 		/omit-if-no-ref/
 		i2s0_sdo1_sdi3: i2s0-sdo1-sdi3 {
 			rockchip,pins =
 				/* i2s0_sdo1_sdi3 */
-				<2 RK_PA7 2 &pcfg_pull_none_drv7_smt>;
+				<2 RK_PA7 2 &pcfg_pull_none_drv_level_0_smt>;
 		};
 		/omit-if-no-ref/
 		i2s0_sdo2_sdi2: i2s0-sdo2-sdi2 {
 			rockchip,pins =
 				/* i2s0_sdo2_sdi2 */
-				<2 RK_PA6 2 &pcfg_pull_none_drv7_smt>;
+				<2 RK_PA6 2 &pcfg_pull_none_drv_level_0_smt>;
 		};
 		/omit-if-no-ref/
 		i2s0_sdo3_sdi1: i2s0-sdo3-sdi1 {
 			rockchip,pins =
 				/* i2s0_sdo3_sdi1 */
-				<2 RK_PA3 2 &pcfg_pull_none_drv7_smt>;
+				<2 RK_PA3 2 &pcfg_pull_none_drv_level_0_smt>;
 		};
 		
 		/* DSD mode: A1 as GPIO instead of LRCLK */
 		i2s0_dsd: i2s0-dsd {
 			rockchip,pins =
+				/* i2s0_sclk (BCK) */
+				<2 RK_PA0 2 &pcfg_pull_none_drv_level_0_smt>,
 				/* i2s0_mclk */
-				<2 RK_PA0 2 &pcfg_pull_none_drv7_smt>,
-				/* i2s0_sclk */
 				<2 RK_PA2 2 &pcfg_pull_none_drv7_smt>,
 				/* i2s0_sdo0 */
-				<2 RK_PA4 2 &pcfg_pull_none_drv7_smt>,
+				<2 RK_PA4 2 &pcfg_pull_none_drv_level_0_smt>,
 				/* A1 as GPIO for DSD data */
-				<2 RK_PA1 RK_FUNC_GPIO &pcfg_pull_none_drv7_smt>,
+				<2 RK_PA1 RK_FUNC_GPIO &pcfg_pull_none_drv_level_0_smt>,
 				/* i2s0_sdo1_sdi3 */
-				<2 RK_PA7 2 &pcfg_pull_none_drv7_smt>,
+				<2 RK_PA7 2 &pcfg_pull_none_drv_level_0_smt>,
 				/* i2s0_sdo2_sdi2 */
-				<2 RK_PA6 2 &pcfg_pull_none_drv7_smt>,
+				<2 RK_PA6 2 &pcfg_pull_none_drv_level_0_smt>,
 				/* i2s0_sdo3_sdi1 */
-				<2 RK_PA3 2 &pcfg_pull_none_drv7_smt>;
+				<2 RK_PA3 2 &pcfg_pull_none_drv_level_0_smt>;
 		};
 		
 		mute_gpio: mute-gpio {

@@ -235,6 +235,26 @@ Each node appears as a separate NAA endpoint on the network. Configure HQPlayer'
 
 > **Network bandwidth limit:** Each node uses 100 Mbit Ethernet. Stable multi-node sync requires ~50% headroom for TCP overhead and retransmissions. Configurations exceeding ~50 Mbps per node may gradually desync. Single-node operation is not affected (8ch/384kHz works fine standalone).
 
+### I2S Output Drive Strength
+
+The I2S output pin drive strength directly affects MCLK signal quality. Higher drive strength causes switching noise that couples back to the MCLK input on the RV1106, creating visible jitter on an oscilloscope.
+
+Use the `drv_strength.sh` script to adjust drive strength at runtime without reflashing:
+
+```bash
+/opt/drv_strength.sh show    # Display current levels
+/opt/drv_strength.sh 0       # Minimum drive (cleanest MCLK)
+/opt/drv_strength.sh 7       # Maximum drive (strongest output)
+```
+
+| Level | MCLK Quality | Signal Strength | Recommended Use |
+|-------|-------------|-----------------|-----------------|
+| 0 | Best | Weakest | Short wires (< 5cm) |
+| 2–3 | Good | Moderate | Typical setup |
+| 7 | Worst (jitter) | Strongest | Default (not recommended for EXT mode) |
+
+The script controls BCK, LRCLK, and SDO0–SDO3 output pins. MCLK (input) and SDI0 (input) are not affected. Changes are immediate but not persistent across reboots — the DTS pinctrl default applies at boot.
+
 ### Runtime sysfs Controls
 
 All controls are accessible at `/sys/devices/platform/ffae0000.i2s/`:
