@@ -8,7 +8,10 @@ if [ ! -f "$TX_RESET" ]; then
     exit 0
 fi
 
+# Snap system clock to NTP before playback (maxslewrate keeps clock drifted)
+chronyc makestep > /dev/null 2>&1
+
 echo "1" > "$TX_RESET"
-sleep 0.4
+sleep 0.3
 
 exit 0
