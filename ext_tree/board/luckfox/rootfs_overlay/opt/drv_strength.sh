@@ -10,6 +10,8 @@
 #
 # Usage: drv_strength.sh [0-7|show]
 
+SAVE_FILE="/etc/i2s_drv_level"
+
 # RV1106 IOC base + GPIO2 drive strength offset
 # Register layout: 2 pins per 32-bit reg, 8 bits per pin
 # Upper 16 bits = write mask, lower 16 bits = value
@@ -106,17 +108,32 @@ set_level() {
 
 # Main
 case "$1" in
-    show|"")
+    show)
         show_current
+        ;;
+    "")
+        # No args: apply saved level or just show
+        if [ -f "$SAVE_FILE" ]; then
+            level=$(cat "$SAVE_FILE" 2>/dev/null)
+            case "$level" in
+                [0-7]) set_level $level ;;
+                *) show_current ;;
+            esac
+        else
+            show_current
+        fi
         ;;
     [0-7])
         set_level $1
+        echo $1 > "$SAVE_FILE"
+        echo "Saved to $SAVE_FILE (persistent across reboots)"
         ;;
     *)
         echo "Usage: $0 [0-7|show]"
         echo ""
-        echo "  0-7   Set drive strength level (0=min, 7=max)"
-        echo "  show  Display current drive strength (default)"
+        echo "  0-7   Set drive strength level and save (persistent)"
+        echo "  show  Display current drive strength"
+        echo "  (no args) Apply saved level or show current"
         echo ""
         echo "Pins controlled: BCK, LRCLK, SDO0-SDO3"
         echo "Pins unchanged:  MCLK (input), SDI0 (input)"

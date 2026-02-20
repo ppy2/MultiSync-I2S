@@ -29,6 +29,11 @@ start() {
         exit 1
     fi
     echo "OK"
+
+    # Apply saved drive strength if configured
+    if [ -f /etc/i2s_drv_level ]; then
+        /opt/drv_strength.sh > /dev/null
+    fi
 }
 
 stop() {
