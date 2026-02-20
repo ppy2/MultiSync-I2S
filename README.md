@@ -253,7 +253,7 @@ Use the `drv_strength.sh` script to adjust drive strength at runtime without ref
 | 2–3 | Good | Moderate | Typical setup |
 | 7 | Worst (jitter) | Strongest | Default (not recommended for EXT mode) |
 
-The script controls BCK, LRCLK, and SDO0–SDO3 output pins. MCLK (input) and SDI0 (input) are not affected. Changes are immediate but not persistent across reboots — the DTS pinctrl default applies at boot.
+The script controls BCK, LRCLK, and SDO0–SDO3 output pins. MCLK (input) and SDI0 (input) are not affected. The selected level is saved to `/etc/i2s_drv_level` and automatically applied at boot.
 
 ### Runtime sysfs Controls
 
