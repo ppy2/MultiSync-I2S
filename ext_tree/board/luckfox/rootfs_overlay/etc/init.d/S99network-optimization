@@ -1,8 +1,24 @@
 #!/bin/sh
 #
-# Network optimization for high bandwidth audio streaming
-# DISABLED: large TCP buffers cause bufferbloat and worsen audio sync
-# ethtool -G crashes RV1106 Ethernet driver
+# Power and noise optimization for audio playback
 #
 
-exit 0
+start() {
+    printf "Applying power optimizations: "
+
+    # Disable USB PHY — not used, saves power and reduces switching noise
+    echo ff3e0000.usb2-phy > /sys/bus/platform/drivers/rockchip-usb2phy/unbind 2>/dev/null
+
+    echo "OK"
+}
+
+stop() {
+    :
+}
+
+case "$1" in
+    start) start ;;
+    stop) stop ;;
+    restart) stop; start ;;
+    *) echo "Usage: $0 {start|stop|restart}" ; exit 1 ;;
+esac

@@ -285,15 +285,15 @@ i2s0_8ch {
 		/omit-if-no-ref/
 		i2s0_mclk: i2s0-mclk {
 			rockchip,pins =
-				/* i2s0_mclk */
-				<2 RK_PA2 2 &pcfg_pull_none_drv7_smt>;
+				/* i2s0_mclk - input, minimum drive */
+				<2 RK_PA2 2 &pcfg_pull_none_drv_level_0_smt>;
 		};
 
 		/omit-if-no-ref/
 		i2s0_mclk_idle: i2s0-mclk-idle {
 			rockchip,pins =
 				/* i2s0_mclk as GPIO input to disconnect external MCLK */
-				<2 RK_PA2 RK_FUNC_GPIO &pcfg_pull_none_drv7_smt>;
+				<2 RK_PA2 RK_FUNC_GPIO &pcfg_pull_none_drv_level_0_smt>;
 		};
 	
 		/omit-if-no-ref/
@@ -305,8 +305,8 @@ i2s0_8ch {
 		/omit-if-no-ref/
 		i2s0_sdi0: i2s0-sdi0 {
 			rockchip,pins =
-				/* i2s0_sdi0 */
-				<2 RK_PA5 2 &pcfg_pull_none_drv7_smt>;
+				/* i2s0_sdi0 - unused, minimum drive */
+				<2 RK_PA5 2 &pcfg_pull_none_drv_level_0_smt>;
 		};
 		/omit-if-no-ref/
 		i2s0_sdo0: i2s0-sdo0 {
@@ -338,8 +338,8 @@ i2s0_8ch {
 			rockchip,pins =
 				/* i2s0_sclk (BCK) */
 				<2 RK_PA0 2 &pcfg_pull_none_drv_level_0_smt>,
-				/* i2s0_mclk */
-				<2 RK_PA2 2 &pcfg_pull_none_drv7_smt>,
+				/* i2s0_mclk - input, minimum drive */
+				<2 RK_PA2 2 &pcfg_pull_none_drv_level_0_smt>,
 				/* i2s0_sdo0 */
 				<2 RK_PA4 2 &pcfg_pull_none_drv_level_0_smt>,
 				/* A1 as GPIO for DSD data */
