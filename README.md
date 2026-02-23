@@ -213,7 +213,7 @@ Each node appears as a separate NAA endpoint on the network. Configure HQPlayer'
 |-----------------|-------|-------|
 | Backend | Combo | Combines multiple NAA endpoints |
 | Channels | 2 / 4 / 6 / 8 | Per endpoint |
-| Buffer | 100 ms | Recommended for stability |
+| Buffer | 1 ms | Recommended for stability |
 | Clock | Network | Network-based synchronization |
 
 **Combo backend** maps consecutive channel pairs across NAA endpoints. For example, with 3 nodes at 8ch each:
