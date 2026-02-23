@@ -213,8 +213,10 @@ Each node appears as a separate NAA endpoint on the network. Configure HQPlayer'
 |-----------------|-------|-------|
 | Backend | Combo | Combines multiple NAA endpoints |
 | Channels | 2 / 4 / 6 / 8 | Per endpoint |
-| Buffer | 1 ms | Recommended for stability |
+| Buffer | **1 ms** | Critical — see note below |
 | Clock | Network | Network-based synchronization |
+
+> **Why 1 ms buffer?** In Combo/Network mode HQPlayer sends both nodes an absolute timestamp "start playing at time T". A large buffer (e.g. 100 ms) means T is set 100 ms in the future — during that window any clock drift between nodes accumulates and causes a desynchronized start. With 1 ms, the window is nearly zero: nodes either start together or HQPlayer immediately detects a miss and retries. Once playback begins, hardware I2S synchronization (shared BCK/LRCLK wires) takes over and is cycle-accurate regardless of buffer size.
 
 **Combo backend** maps consecutive channel pairs across NAA endpoints. For example, with 3 nodes at 8ch each:
 
