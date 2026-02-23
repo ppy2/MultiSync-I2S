@@ -17,10 +17,13 @@ echo "started (background)"
     while true; do
         MASTER_IP=$(avahi-resolve-host-name -4 master.local 2>/dev/null | awk '{print $2}')
         if [ -n "$MASTER_IP" ]; then
-            sed -i '/master/d' /etc/hosts
-            echo "$MASTER_IP master master.local" >> /etc/hosts
-            chronyc reload >/dev/null 2>&1
-            logger -t resolve-master "master.local resolved: $MASTER_IP"
+            CURRENT_IP=$(grep -m1 'master' /etc/hosts | awk '{print $1}')
+            if [ "$MASTER_IP" != "$CURRENT_IP" ]; then
+                sed -i '/master/d' /etc/hosts
+                echo "$MASTER_IP master master.local" >> /etc/hosts
+                chronyc reload >/dev/null 2>&1
+                logger -t resolve-master "master.local resolved: $MASTER_IP"
+            fi
             break
         fi
         sleep 1
