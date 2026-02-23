@@ -1,0 +1,37 @@
+#!/bin/sh
+#
+# Resolve master node IP via mDNS (avahi) and write to /etc/hosts.
+# Runs only on slave nodes, after avahi-daemon (S50).
+# This ensures "master" hostname resolves in any network without DNS.
+#
+
+# Only run on slave nodes
+if ! readlink /etc/networkaudiod/onstart 2>/dev/null | grep -q slave; then
+    exit 0
+fi
+
+printf "Resolving master via mDNS: "
+
+# Try up to 10 seconds for avahi to be ready
+MASTER_IP=""
+for i in $(seq 1 10); do
+    MASTER_IP=$(avahi-resolve-host-name -4 master.local 2>/dev/null | awk '{print $2}')
+    [ -n "$MASTER_IP" ] && break
+    sleep 1
+done
+
+if [ -z "$MASTER_IP" ]; then
+    echo "FAIL (master.local not found)"
+    exit 1
+fi
+
+# Update /etc/hosts
+sed -i '/master/d' /etc/hosts
+echo "$MASTER_IP master master.local" >> /etc/hosts
+
+echo "OK ($MASTER_IP)"
+
+# Reload chrony sources so it picks up the new IP
+chronyc reload >/dev/null 2>&1
+
+exit 0
