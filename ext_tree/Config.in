@@ -1,4 +1,5 @@
 menu "Custom packages"
 	source "../ext_tree/package/alsa-drain-wrapper/Config.in"
 	source "../ext_tree/package/naa/Config.in"
+	source "../ext_tree/package/llmnrd/Config.in"
 endmenu

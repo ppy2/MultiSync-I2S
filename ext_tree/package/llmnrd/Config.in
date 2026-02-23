@@ -1,0 +1,8 @@
+config BR2_PACKAGE_LLMNRD
+	bool "llmnrd"
+	help
+	  Link-Local Multicast Name Resolution daemon.
+	  Allows Linux to resolve plain hostnames (without .local suffix)
+	  on local networks, compatible with Windows LLMNR resolution.
+
+	  https://github.com/tklauser/llmnrd

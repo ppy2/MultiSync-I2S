@@ -1,0 +1,34 @@
+#!/bin/sh
+#
+# llmnrd - LLMNR responder/resolver
+# Enables hostname resolution compatible with Windows on any local network
+#
+
+DAEMON="llmnrd"
+PIDFILE="/var/run/llmnrd.pid"
+
+start() {
+    printf "Starting %s: " "$DAEMON"
+    if [ ! -x /usr/sbin/llmnrd ]; then
+        echo "SKIP (not installed)"
+        return 0
+    fi
+    /usr/sbin/llmnrd -d -p "$PIDFILE" -i eth0
+    echo "OK"
+}
+
+stop() {
+    printf "Stopping %s: " "$DAEMON"
+    if [ -f "$PIDFILE" ]; then
+        kill $(cat "$PIDFILE") 2>/dev/null
+        rm -f "$PIDFILE"
+    fi
+    echo "OK"
+}
+
+case "$1" in
+    start) start ;;
+    stop)  stop  ;;
+    restart) stop; start ;;
+    *) echo "Usage: $0 {start|stop|restart}"; exit 1 ;;
+esac
