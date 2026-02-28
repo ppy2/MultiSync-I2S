@@ -80,6 +80,7 @@ i2s0_8ch: i2s@ffae0000 {
     	freq-domain-gpios = <&gpio1 RK_PD1 GPIO_ACTIVE_HIGH>;
     	freq-domain-inv-gpios = <&gpio1 RK_PC5 GPIO_ACTIVE_HIGH>;
     	hires-gpios = <&gpio1 RK_PC6 GPIO_ACTIVE_HIGH>;
+    	sync-gpios = <&gpio1 RK_PC7 GPIO_ACTIVE_HIGH>;
     	pinctrl-names = "default";
     	pinctrl-0 = <&i2s0_lrck
         	&i2s0_mclk
@@ -94,7 +95,8 @@ i2s0_8ch: i2s@ffae0000 {
         	&dsd_on_gpio
         	&mclk_sel_gpio
         	&freq_domain_inv_gpio
-        	&hires_gpio>;
+        	&hires_gpio
+        	&sync_gpio>;
     	status = "disable";
 };
 

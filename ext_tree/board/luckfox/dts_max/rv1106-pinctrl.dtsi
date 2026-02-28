@@ -386,6 +386,12 @@ i2s0_8ch {
             			<1 RK_PC6 RK_FUNC_GPIO &pcfg_pull_down_drv_level_2>;
 		};
 
+		sync_gpio: sync-gpio {
+        		rockchip,pins =
+            			/* gpio1_c7 - HW sync wire: master OUT / slave IN */
+            			<1 RK_PC7 RK_FUNC_GPIO &pcfg_pull_down_drv_level_2>;
+		};
+
 	/* Idle state for master clock isolation: BCK/LRCLK as GPIO input with pull-down */
 	/omit-if-no-ref/
 	i2s0_lrck_idle: i2s0-lrck-idle {
