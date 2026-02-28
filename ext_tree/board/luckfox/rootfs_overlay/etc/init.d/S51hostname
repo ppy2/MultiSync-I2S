@@ -1,26 +1,27 @@
 #!/bin/sh
-# Read hostname assigned by avahi after conflict resolution
+# Read hostname assigned by avahi after conflict resolution.
 # If another "slave" is already on the network, avahi picks "slave-2", etc.
-# Persist the resolved name so it's stable across reboots.
+# Wait for avahi state=RUNNING (probing complete) before reading the name.
 
 case "$1" in
   start)
-    ROLE=$(cat /etc/hostname 2>/dev/null)
-    [ "$ROLE" = "master" ] && exit 0
+    [ "$(cat /etc/hostname 2>/dev/null)" = "master" ] && exit 0
 
-    # Poll avahi until hostname is resolved (probing + conflict resolution)
-    AVAHI_HOST=""
-    for i in 1 2 3 4 5 6 7 8 9 10; do
-        AVAHI_HOST=$(dbus-send --system --print-reply --dest=org.freedesktop.Avahi \
-            / org.freedesktop.Avahi.Server.GetHostName 2>/dev/null | \
-            grep string | sed 's/.*"\(.*\)"/\1/')
-        [ -n "$AVAHI_HOST" ] && break
-        sleep 0.3
+    # Wait for avahi state RUNNING (2) — probing + conflict resolution done
+    for i in $(seq 1 30); do
+        STATE=$(dbus-send --system --print-reply --dest=org.freedesktop.Avahi \
+            / org.freedesktop.Avahi.Server.GetState 2>/dev/null | \
+            grep int32 | awk '{print $2}')
+        [ "$STATE" = "2" ] && break
+        sleep 0.2
     done
+
+    AVAHI_HOST=$(dbus-send --system --print-reply --dest=org.freedesktop.Avahi \
+        / org.freedesktop.Avahi.Server.GetHostName 2>/dev/null | \
+        grep string | sed 's/.*"\(.*\)"/\1/')
 
     if [ -n "$AVAHI_HOST" ]; then
         hostname "$AVAHI_HOST"
-        # Persist only if changed (minimize flash writes)
         CURRENT=$(cat /etc/hostname 2>/dev/null)
         if [ "$AVAHI_HOST" != "$CURRENT" ]; then
             echo "$AVAHI_HOST" > /etc/hostname
