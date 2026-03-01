@@ -238,7 +238,7 @@ Each node appears as a separate NAA endpoint on the network. Configure HQPlayer'
 |------|--------------|-------------|--------------|--------|
 | PCM 8ch | 8 | up to 192 kHz | 49 Mbps | **Tested, stable** |
 | PCM 4ch | 4 | up to 384 kHz | 49 Mbps | **Tested, stable** |
-| PCM 6ch | 6 | 384 kHz | 74 Mbps | Desync after ~1 hour |
+| PCM 6ch | 6 | 384 kHz | 74 Mbps | **Tested, stable** (Linux HQPlayer required) |
 | DSD 4ch | 4 | DSD64–DSD256 | — | Not tested (driver supports it) |
 
 > **Network bandwidth limit:** Each node uses 100 Mbit Ethernet. Stable multi-node sync requires ~50% headroom for TCP overhead and retransmissions. Configurations exceeding ~50 Mbps per node may gradually desync. Single-node operation is not affected (8ch/384kHz works fine standalone).
