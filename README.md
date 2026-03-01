@@ -121,6 +121,8 @@ GPIO1_D1 (MCLK_SEL) selects between them via a `gpio-mux-clock`. The driver swit
 - Ethernet network connecting all nodes and HQPlayer host
 - Luckfox Pico MAX boards flashed with this firmware
 
+> **HQPlayer host OS:** Linux is strongly recommended. Windows versions of HQPlayer produce bursty network traffic that can cause DMA underruns on the RV1106's single-core CPU, especially at sample rates above 192 kHz.
+
 ### Building
 
 ```bash
