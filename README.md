@@ -79,6 +79,8 @@ This cluster guarantees **zero inter-channel timing error** because all nodes sh
 | DSD_ON | GPIO1_D0 | 19 | DSD mode enable |
 | MCLK_SEL | GPIO1_D1 | 20 | Clock domain select (44.1/48kHz) |
 | FREQ_INV | GPIO1_C5 |  6 | Inverted clock domain select |
+| HI_RES | GPIO1_C6 |  5 | Hi-Res indicator (active at 352.8/384 kHz) |
+| HW_SYNC | GPIO1_C7 |  4 | Start sync wire: master OUT → slave IN |
 
 <img width="410" height="605" alt="Fox" src="https://github.com/user-attachments/assets/8bf25694-e08b-4c7d-8d9f-38f191704a55" />
 
@@ -89,14 +91,16 @@ Connect **master → all slaves** with short wires (< 5cm recommended):
 ```
 Master                    Slave(s)
 ──────                    ────────
-BCK   (GPIO2_A0) ──────► BCK   (GPIO2_A0)
-LRCLK (GPIO2_A1) ──────► LRCLK (GPIO2_A1)
-MCLK  (GPIO2_A2) ──────► MCLK  (GPIO2_A2)
-GND   ────────────────── GND
+BCK     (GPIO2_A0, pin 24) ──────► BCK     (GPIO2_A0, pin 24)
+LRCLK   (GPIO2_A1, pin 25) ──────► LRCLK   (GPIO2_A1, pin 25)
+MCLK    (GPIO2_A2, pin 26) ──────► MCLK    (GPIO2_A2, pin 26)
+HW_SYNC (GPIO1_C7, pin  4) ──────► HW_SYNC (GPIO1_C7, pin  4)
+GND     ─────────────────────────── GND
 ```
 
 **Important:**
 - All three clock lines (BCK, LRCLK, MCLK) must be connected
+- HW_SYNC wire triggers bit-exact simultaneous start across all nodes — connect master pin 4 to all slaves pin 4
 - Common GND is mandatory
 - Keep wires short and equal length to minimize skew
 - Data lines (SDO0–SDO3) go to each node's own DAC — they are NOT shared between nodes
