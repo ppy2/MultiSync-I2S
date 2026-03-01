@@ -52,7 +52,7 @@ diff -Naur --no-dereference original_dir/sound/soc/codecs/dummy-codec.c modified
  };
 diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c modified_dir/sound/soc/rockchip/rockchip_i2s_tdm.c
 --- original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c	2025-07-13 22:11:14.000000000 +0200
-+++ modified_dir/sound/soc/rockchip/rockchip_i2s_tdm.c	2026-02-20 07:41:16.941956664 +0100
++++ modified_dir/sound/soc/rockchip/rockchip_i2s_tdm.c	2026-03-01 07:39:36.850753921 +0100
 @@ -4,18 +4,14 @@
   *
   * Copyright (c) 2018 Rockchip Electronics Co. Ltd.
@@ -107,7 +107,7 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
  
  #define DRV_NAME "rockchip-i2s-tdm"
  
-@@ -39,328 +48,498 @@
+@@ -39,328 +48,502 @@
  #define HAVE_SYNC_RESET
  #endif
  
@@ -280,6 +280,9 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
 +    struct gpio_desc *freq_domain_gpio;  /* Frequency domain indicator GPIO (GPIO1_D1) 44.1/48 kHz */
 +    struct gpio_desc *freq_domain_inv_gpio;  /* Inverted freq domain output (GPIO1_C5) */
 +    struct gpio_desc *hires_gpio;  /* Hi-Res indicator GPIO (GPIO1_C6) — active for 352.8/384 kHz */
++    struct gpio_desc *sync_gpio;   /* HW sync wire GPIO1_C7: master=OUT, slave=IN */
++    int sync_irq;                  /* slave: GPIO interrupt number (-1 if unused) */
++    bool sync_irq_armed;           /* slave: IRQ is armed, waiting for master pulse */
 +    bool freq_domain_invert;        // Invert frequency domain GPIO polarity
 +    
 +    /* MCLK multiplier for switching 512/1024 */
@@ -435,6 +438,7 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
 +static void rockchip_i2s_tdm_unmute_work(struct work_struct *work);
 +static void rockchip_i2s_tdm_master_xfer_work(struct work_struct *work);
 +static void rockchip_i2s_tdm_fifo_mon_work(struct work_struct *work);
++static irqreturn_t rockchip_i2s_tdm_sync_irq(int irq, void *dev_id);
 +
  static struct i2s_of_quirks {
 -	char *quirk;
@@ -857,7 +861,7 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
  }
  
  /*
-@@ -369,16 +548,18 @@
+@@ -369,16 +552,18 @@
   */
  static void rockchip_i2s_tdm_sync_reset(struct rk_i2s_tdm_dev *i2s_tdm)
  {
@@ -878,7 +882,7 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
  static inline void rockchip_i2s_tdm_sync_reset(struct rk_i2s_tdm_dev *i2s_tdm)
  {
  }
-@@ -386,57 +567,59 @@
+@@ -386,57 +571,59 @@
  
  static void rockchip_i2s_tdm_reset(struct reset_control *rc)
  {
@@ -980,7 +984,7 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
  }
  
  /*
-@@ -446,2088 +629,3944 @@
+@@ -446,2088 +633,4055 @@
   */
  static void rockchip_i2s_tdm_tx_fifo_padding(struct rk_i2s_tdm_dev *i2s_tdm, bool en)
  {
@@ -1315,7 +1319,34 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
 +        return; /* I2S_XFER will be set by master_xfer_work */
 +    }
 +
-+    /* SLAVE or non-master: start I2S transfer immediately */
++    /* SLAVE: use GPIO hardware sync if available — XFER set by IRQ when master BCK starts */
++    if (stream == SNDRV_PCM_STREAM_PLAYBACK && i2s_tdm->sync_irq >= 0) {
++        i2s_tdm->sync_irq_armed = true;
++        enable_irq(i2s_tdm->sync_irq);
++
++        /*
++         * If GPIO is already HIGH (slave trigger arrived after master pulsed),
++         * the rising edge is gone and the edge-triggered IRQ will never fire.
++         * Log a warning but do NOT start XFER — silence is correct here.
++         * Out-of-sync playback across nodes is worse than silence.
++         * HQPlayer will detect the xrun and retry with proper timing.
++         */
++        smp_mb();
++        if (i2s_tdm->sync_irq_armed &&
++            i2s_tdm->sync_gpio && gpiod_get_value(i2s_tdm->sync_gpio)) {
++            dev_warn(i2s_tdm->dev,
++                     "START: SLAVE late trigger — GPIO already HIGH, staying silent (no sync possible) at %lld ns\n",
++                     ktime_to_ns(ktime_get_real()));
++            /* IRQ will never fire; slave stays silent until TRIGGER_STOP */
++        }
++
++        dev_info(i2s_tdm->dev,
++                 "START: SLAVE armed HW sync IRQ %d, waiting for master GPIO at %lld ns\n",
++                 i2s_tdm->sync_irq, ktime_to_ns(ktime_get_real()));
++        return; /* XFER will be set by rockchip_i2s_tdm_sync_irq */
++    }
++
++    /* Fallback: no GPIO sync, start I2S transfer immediately */
 +    if (i2s_tdm->clk_trcm)
 +        rockchip_i2s_tdm_xfer_trcm_start(i2s_tdm);
 +    else
@@ -1335,6 +1366,17 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
 +    if (stream == SNDRV_PCM_STREAM_PLAYBACK && i2s_tdm->is_master_mode) {
 +        i2s_tdm->xfer_pending = false;
 +        cancel_delayed_work(&i2s_tdm->master_xfer_work);
++        /* Reset sync GPIO LOW so slave sees a clean rising edge next time */
++        if (i2s_tdm->sync_gpio)
++            gpiod_set_value(i2s_tdm->sync_gpio, 0);
++    }
++
++    /* Disarm slave sync IRQ if still waiting (e.g. stop before master pulsed) */
++    if (stream == SNDRV_PCM_STREAM_PLAYBACK &&
++        !i2s_tdm->is_master_mode &&
++        i2s_tdm->sync_irq >= 0 && i2s_tdm->sync_irq_armed) {
++        disable_irq(i2s_tdm->sync_irq);
++        i2s_tdm->sync_irq_armed = false;
 +    }
 +
 +    /* Stop I2S transfer, then DMA */
@@ -1598,10 +1640,31 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
 +    case SND_SOC_DAIFMT_CBS_CFS:
 +    val = I2S_CKR_MSS_MASTER;
 +    i2s_tdm->is_master_mode = true;
++    /* Configure sync GPIO as output (LOW = idle, HIGH = BCK started) */
++    if (i2s_tdm->sync_gpio)
++        gpiod_direction_output(i2s_tdm->sync_gpio, 0);
 +    break;
 +    case SND_SOC_DAIFMT_CBM_CFM:
 +    val = I2S_CKR_MSS_SLAVE;
 +    i2s_tdm->is_master_mode = false;
++    /* Configure sync GPIO as input and request rising-edge IRQ (once) */
++    if (i2s_tdm->sync_gpio && i2s_tdm->sync_irq < 0) {
++        int irq;
++        gpiod_direction_input(i2s_tdm->sync_gpio);
++        irq = gpiod_to_irq(i2s_tdm->sync_gpio);
++        if (irq >= 0) {
++            ret = devm_request_irq(i2s_tdm->dev, irq,
++                                   rockchip_i2s_tdm_sync_irq,
++                                   IRQF_TRIGGER_RISING,
++                                   "i2s-hw-sync", i2s_tdm);
++            if (!ret) {
++                disable_irq(irq);
++                i2s_tdm->sync_irq = irq;
++                dev_info(i2s_tdm->dev,
++                         "HW sync IRQ %d registered (slave mode)\n", irq);
++            }
++        }
++    }
 +    break;
 +    default:
 +    ret = -EINVAL;
@@ -3767,6 +3830,32 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
 +    mutex_unlock(&i2s_tdm->mute_lock);
 +}
 +
++/* Slave HW sync IRQ handler — fires when master pulses GPIO1_C7 after BCK starts */
++static irqreturn_t rockchip_i2s_tdm_sync_irq(int irq, void *dev_id)
++{
++    struct rk_i2s_tdm_dev *i2s_tdm = dev_id;
++
++    i2s_tdm->sync_irq_armed = false;
++    disable_irq_nosync(irq);
++
++    /*
++     * Enable XFER now — master BCLK has NOT started yet (master waits 1 ms
++     * after pulsing GPIO before enabling BCLK).  Slave FIFO pre-fills with
++     * audio[0..N] while waiting.  When master BCLK arrives ~1 ms later,
++     * both master and slave output audio[0] on the first BCLK edge → BIT-EXACT.
++     */
++    if (i2s_tdm->clk_trcm)
++        rockchip_i2s_tdm_xfer_trcm_start(i2s_tdm);
++    else
++        rockchip_i2s_tdm_xfer_start(i2s_tdm, SNDRV_PCM_STREAM_PLAYBACK);
++
++    dev_info(i2s_tdm->dev,
++             "HW_SYNC_IRQ: SLAVE XFER enabled at %lld ns (waiting for master BCLK)\n",
++             ktime_to_ns(ktime_get_real()));
++
++    return IRQ_HANDLED;
++}
++
 +/* Master delayed BCLK start - runs in kworker after master_start_delay_ms */
 +static void rockchip_i2s_tdm_master_xfer_work(struct work_struct *work)
 +{
@@ -3778,14 +3867,30 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
 +
 +    i2s_tdm->xfer_pending = false;
 +
-+    /* Start I2S transfer - BCLK/LRCLK begins */
++    /*
++     * Bit-exact sync sequence:
++     *   1. Pulse GPIO HIGH → slave IRQ fires → slave enables XFER → slave FIFO pre-fills
++     *   2. Wait 1 ms — guarantees slave XFER is enabled before BCLK starts
++     *      (IRQ latency is ~50 µs; 1 ms is 20× margin)
++     *   3. Enable BCLK — slave FIFO is already loaded with audio[0..N]
++     *      Both master and slave output audio[0] on the very first BCLK edge → BIT-EXACT
++     */
++    if (i2s_tdm->sync_gpio) {
++        gpiod_set_value(i2s_tdm->sync_gpio, 1);
++        dev_info(i2s_tdm->dev,
++                 "MASTER_XFER: sync GPIO pulsed HIGH at %lld ns — waiting 1 ms for slave XFER\n",
++                 ktime_to_ns(ktime_get_real()));
++        usleep_range(1000, 1100);   /* slave IRQ latency ~50 µs; 1 ms = 20× margin */
++    }
++
++    /* Start BCLK — slave is already waiting with XFER enabled and FIFO pre-filled */
 +    if (i2s_tdm->clk_trcm)
 +        rockchip_i2s_tdm_xfer_trcm_start(i2s_tdm);
 +    else
 +        rockchip_i2s_tdm_xfer_start(i2s_tdm, SNDRV_PCM_STREAM_PLAYBACK);
 +
 +    dev_info(i2s_tdm->dev,
-+             "MASTER_XFER: BCLK started at %lld ns (delayed %u ms)\n",
++             "MASTER_XFER: BCLK started at %lld ns (delayed %u ms + 1 ms GPIO)\n",
 +             ktime_to_ns(ktime_get_real()), i2s_tdm->master_start_delay_ms);
 +}
 +
@@ -5759,7 +5864,7 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
 +    INIT_DELAYED_WORK(&i2s_tdm->fifo_mon_work, rockchip_i2s_tdm_fifo_mon_work);
 +    i2s_tdm->mute_control_enable = true;
 +    i2s_tdm->unmute_after_ms = 1;
-+    i2s_tdm->master_start_delay_ms = 500;
++    i2s_tdm->master_start_delay_ms = 2000; /* 3-node: HQPlayer needs ~1.6s to deliver all triggers */
 +    i2s_tdm->xfer_pending = false;
 +    i2s_tdm->fifo_mon_active = false;
 +    i2s_tdm->fifo_underflow_count = 0;
@@ -5866,6 +5971,16 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
 +    } else if (i2s_tdm->hires_gpio) {
 +        dev_info(&pdev->dev, "Hi-Res indicator GPIO initialized\n");
 +    }
++
++    /* Initialize HW sync GPIO (GPIO1_C7) — direction set in set_fmt when role is known */
++    i2s_tdm->sync_gpio = devm_gpiod_get_optional(&pdev->dev, "sync", GPIOD_ASIS);
++    if (IS_ERR(i2s_tdm->sync_gpio)) {
++        i2s_tdm->sync_gpio = NULL;
++    } else if (i2s_tdm->sync_gpio) {
++        dev_info(&pdev->dev, "HW sync GPIO initialized (GPIO1_C7)\n");
++    }
++    i2s_tdm->sync_irq = -1;
++    i2s_tdm->sync_irq_armed = false;
 +
 +    of_id = of_match_device(rockchip_i2s_tdm_match, &pdev->dev);
 +    if (!of_id)
