@@ -52,7 +52,7 @@ diff -Naur --no-dereference original_dir/sound/soc/codecs/dummy-codec.c modified
  };
 diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c modified_dir/sound/soc/rockchip/rockchip_i2s_tdm.c
 --- original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c	2025-07-13 22:11:14.000000000 +0200
-+++ modified_dir/sound/soc/rockchip/rockchip_i2s_tdm.c	2026-03-01 07:39:36.850753921 +0100
++++ modified_dir/sound/soc/rockchip/rockchip_i2s_tdm.c	2026-03-02 08:30:29.736078939 +0100
 @@ -4,18 +4,14 @@
   *
   * Copyright (c) 2018 Rockchip Electronics Co. Ltd.
@@ -297,7 +297,7 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
 +
 +    /* Mute control via delayed_work (separate kworker thread, zero jitter on data path) */
 +    bool mute_control_enable;       // Enable/disable mute control logic (master=1, slave=0)
-+    unsigned int unmute_after_ms;   // Unmute delay in ms after trigger START (default 1)
++    unsigned int unmute_after_ms;   // Unmute delay in ms after BCLK starts (master+sync) or after TRIGGER_START (slave/single-node)
 +    struct delayed_work unmute_work; // Delayed work for unmute (runs in kworker)
 +
 +    /* Master delayed BCLK start - guarantees slave sets I2S_XFER first */
@@ -984,7 +984,7 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
  }
  
  /*
-@@ -446,2088 +633,4055 @@
+@@ -446,2088 +633,4080 @@
   */
  static void rockchip_i2s_tdm_tx_fifo_padding(struct rk_i2s_tdm_dev *i2s_tdm, bool en)
  {
@@ -3281,10 +3281,22 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
 +                 ktime_us_delta(trigger_end_time, trigger_start_time),
 +                 txfifolr);
 +
-+        /* Schedule unmute in separate kworker thread */
++        /*
++         * Schedule unmute in separate kworker thread.
++         * On master with GPIO HW sync: defer unmute to master_xfer_work (after BCLK starts).
++         * This way, if a slave fails to sync, HQPlayer detects the xrun and sends TRIGGER_STOP,
++         * which cancels the pending unmute — so MUTE stays active and no audio is emitted.
++         * On slave or single-node master (no sync_gpio): unmute immediately after trigger.
++         */
 +        if (i2s_tdm->mute_control_enable && !i2s_tdm->user_mute_priority) {
-+            schedule_delayed_work(&i2s_tdm->unmute_work,
-+                                msecs_to_jiffies(i2s_tdm->unmute_after_ms));
++            if (i2s_tdm->is_master_mode && i2s_tdm->sync_gpio) {
++                dev_info(i2s_tdm->dev,
++                         "START: MASTER unmute deferred to BCLK start + %u ms (sync confirmation)\n",
++                         i2s_tdm->unmute_after_ms);
++            } else {
++                schedule_delayed_work(&i2s_tdm->unmute_work,
++                                    msecs_to_jiffies(i2s_tdm->unmute_after_ms));
++            }
 +        }
 +
 +        /* Start FIFO underflow + hw_ptr drift monitor */
@@ -3890,8 +3902,21 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
 +        rockchip_i2s_tdm_xfer_start(i2s_tdm, SNDRV_PCM_STREAM_PLAYBACK);
 +
 +    dev_info(i2s_tdm->dev,
-+             "MASTER_XFER: BCLK started at %lld ns (delayed %u ms + 1 ms GPIO)\n",
-+             ktime_to_ns(ktime_get_real()), i2s_tdm->master_start_delay_ms);
++             "MASTER_XFER: BCLK started at %lld ns (delayed %u ms + 1 ms GPIO), unmute in %u ms\n",
++             ktime_to_ns(ktime_get_real()), i2s_tdm->master_start_delay_ms,
++             i2s_tdm->unmute_after_ms);
++
++    /*
++     * Schedule unmute AFTER BCLK starts (not at TRIGGER_START).
++     * Window: if any slave failed to sync, its ALSA buffer drains in ~8 ms (8 periods × 1 ms),
++     * HQPlayer detects the xrun and sends TRIGGER_STOP, which cancels this work.
++     * Result: MUTE stays active → no audio on failed sync → clean retry.
++     * unmute_after_ms (default 100 ms) must exceed HQPlayer's failure detection latency.
++     */
++    if (i2s_tdm->mute_control_enable && !i2s_tdm->user_mute_priority) {
++        schedule_delayed_work(&i2s_tdm->unmute_work,
++                              msecs_to_jiffies(i2s_tdm->unmute_after_ms));
++    }
 +}
 +
 +/*
@@ -5863,7 +5888,7 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
 +    INIT_DELAYED_WORK(&i2s_tdm->master_xfer_work, rockchip_i2s_tdm_master_xfer_work);
 +    INIT_DELAYED_WORK(&i2s_tdm->fifo_mon_work, rockchip_i2s_tdm_fifo_mon_work);
 +    i2s_tdm->mute_control_enable = true;
-+    i2s_tdm->unmute_after_ms = 1;
++    i2s_tdm->unmute_after_ms = 100; /* 100 ms: enough for HQPlayer to detect slave xrun (~8 ms buffer) and send STOP */
 +    i2s_tdm->master_start_delay_ms = 2000; /* 3-node: HQPlayer needs ~1.6s to deliver all triggers */
 +    i2s_tdm->xfer_pending = false;
 +    i2s_tdm->fifo_mon_active = false;
