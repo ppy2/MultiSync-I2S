@@ -52,7 +52,7 @@ diff -Naur --no-dereference original_dir/sound/soc/codecs/dummy-codec.c modified
  };
 diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c modified_dir/sound/soc/rockchip/rockchip_i2s_tdm.c
 --- original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c	2025-07-13 22:11:14.000000000 +0200
-+++ modified_dir/sound/soc/rockchip/rockchip_i2s_tdm.c	2026-03-02 08:30:29.736078939 +0100
++++ modified_dir/sound/soc/rockchip/rockchip_i2s_tdm.c	2026-03-02 08:41:27.315850521 +0100
 @@ -4,18 +4,14 @@
   *
   * Copyright (c) 2018 Rockchip Electronics Co. Ltd.
@@ -3911,7 +3911,7 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
 +     * Window: if any slave failed to sync, its ALSA buffer drains in ~8 ms (8 periods × 1 ms),
 +     * HQPlayer detects the xrun and sends TRIGGER_STOP, which cancels this work.
 +     * Result: MUTE stays active → no audio on failed sync → clean retry.
-+     * unmute_after_ms (default 100 ms) must exceed HQPlayer's failure detection latency.
++     * unmute_after_ms (default 50 ms) must exceed HQPlayer's failure detection latency.
 +     */
 +    if (i2s_tdm->mute_control_enable && !i2s_tdm->user_mute_priority) {
 +        schedule_delayed_work(&i2s_tdm->unmute_work,
@@ -5888,7 +5888,7 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
 +    INIT_DELAYED_WORK(&i2s_tdm->master_xfer_work, rockchip_i2s_tdm_master_xfer_work);
 +    INIT_DELAYED_WORK(&i2s_tdm->fifo_mon_work, rockchip_i2s_tdm_fifo_mon_work);
 +    i2s_tdm->mute_control_enable = true;
-+    i2s_tdm->unmute_after_ms = 100; /* 100 ms: enough for HQPlayer to detect slave xrun (~8 ms buffer) and send STOP */
++    i2s_tdm->unmute_after_ms = 50; /* 50 ms: enough for HQPlayer to detect slave xrun (~8 ms buffer) and send STOP */
 +    i2s_tdm->master_start_delay_ms = 2000; /* 3-node: HQPlayer needs ~1.6s to deliver all triggers */
 +    i2s_tdm->xfer_pending = false;
 +    i2s_tdm->fifo_mon_active = false;
