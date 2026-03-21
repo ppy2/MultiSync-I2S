@@ -13,6 +13,7 @@ buildroot/*.diff
 *.pyc
 .claude
 backup*
-
-
 AGENTS.md
+.crush
+QWEN.md
+

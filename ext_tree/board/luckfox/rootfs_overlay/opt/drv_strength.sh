@@ -2,10 +2,10 @@
 #
 # I2S output pins drive strength control for RV1106
 #
-# Controls drive strength of BCK, LRCLK, and SDO0-SDO3 output pins.
+# Controls drive strength of MCLK, BCK, LRCLK, and SDO0-SDO3 output pins.
 #
-# Higher drive strength = stronger output signal but more noise
-# coupling to MCLK input. Lower = cleaner MCLK but weaker output.
+# Higher drive strength = stronger output signal.
+# Lower = weaker output but potentially cleaner signal.
 #
 # Usage: drv_strength.sh [0-7|show]
 
@@ -60,7 +60,9 @@ show_current() {
     echo "LRCLK (GPIO2_A1) : level $(decode_drv $a1)"
 
     val=$(io -4 $REG_A2_A3 2>/dev/null | awk -F': ' '{print $2}')
+    a2=$(printf "%d" "0x$(echo $val | cut -c7-8)")
     a3=$(printf "%d" "0x$(echo $val | cut -c5-6)")
+    echo "MCLK  (GPIO2_A2) : level $(decode_drv $a2)"
     echo "SDO3  (GPIO2_A3) : level $(decode_drv $a3)"
 
     val=$(io -4 $REG_A4_A5 2>/dev/null | awk -F': ' '{print $2}')
@@ -85,8 +87,8 @@ set_level() {
     v=$(printf "0x%08X" $(( (0xFFFF << 16) | ($raw << 8) | $raw )))
     io -4 $REG_A0_A1 $v
 
-    # A3 (SDO3) only — A2 (MCLK) not touched
-    v=$(printf "0x%08X" $(( (0xFF << 24) | ($raw << 8) )))
+    # A2 (MCLK) + A3 (SDO3) - both outputs
+    v=$(printf "0x%08X" $(( (0xFFFF << 16) | ($raw << 8) | $raw )))
     io -4 $REG_A2_A3 $v
 
     # A4 (SDO0) only — A5 (SDI0) not touched
@@ -130,7 +132,7 @@ case "$1" in
         echo "  show  Display current drive strength"
         echo "  (no args) Apply saved level or show current"
         echo ""
-        echo "Pins controlled: BCK, LRCLK, SDO0-SDO3"
+        echo "Pins controlled: MCLK, BCK, LRCLK, SDO0-SDO3"
         echo ""
         echo "Lower drive strength reduces MCLK jitter but weakens output signal."
         exit 1
