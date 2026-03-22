@@ -91,7 +91,7 @@ i2s80:sound {
 	simple-audio-card,name = "I2S_EXT_CLOCK_ALSA_CARD";
 
 /*********COMMENT_IT_IF_YOU_USE_EXT_MCLK**************/
-	simple-audio-card,mclk-fs = <128>;
+	simple-audio-card,mclk-fs = <1024>;
 /*****************************************************/
 	simple-audio-card,format = "i2s";
 
