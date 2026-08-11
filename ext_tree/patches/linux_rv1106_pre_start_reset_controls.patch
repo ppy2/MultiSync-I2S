@@ -1,0 +1,123 @@
+--- a/sound/soc/rockchip/rockchip_i2s_tdm.c
++++ b/sound/soc/rockchip/rockchip_i2s_tdm.c
+@@ -148,6 +148,9 @@
+     int sync_irq;                  /* slave: GPIO interrupt number (-1 if unused) */
+     bool sync_irq_armed;           /* slave: IRQ is armed, waiting for master pulse */
+     bool sync_gpio_enable;          /* runtime C7 path toggle; default enabled */
++    bool pre_start_reset_hclk;      /* playback START: assert/deassert HCLK reset */
++    bool pre_start_reset_tx;        /* playback START: assert/deassert TX reset */
++    bool pre_start_reset_rx;        /* playback START: assert/deassert RX reset */
+     bool freq_domain_invert;        // Invert frequency domain GPIO polarity
+     
+     /* MCLK multiplier for switching 512/1024 */
+@@ -809,13 +812,46 @@
+     return i2s_tdm->capture_paused;
+ }
+ 
++/*
++ * Playback START reset. This runs only in ALSA trigger context, never from the
++ * C7 GPIO IRQ. The independent sysfs controls apply to the next START.
++ */
++static void rockchip_i2s_tdm_pre_start_reset(struct rk_i2s_tdm_dev *i2s_tdm)
++{
++    bool reset_hclk = i2s_tdm->pre_start_reset_hclk && i2s_tdm->hclk_reset;
++    bool reset_tx = i2s_tdm->pre_start_reset_tx && i2s_tdm->tx_reset;
++    bool reset_rx = i2s_tdm->pre_start_reset_rx && i2s_tdm->rx_reset;
++
++    if (!reset_hclk && !reset_tx && !reset_rx)
++        return;
++
++    if (reset_hclk)
++        reset_control_assert(i2s_tdm->hclk_reset);
++    if (reset_tx)
++        reset_control_assert(i2s_tdm->tx_reset);
++    if (reset_rx)
++        reset_control_assert(i2s_tdm->rx_reset);
++
++    udelay(100);
++
++    if (reset_hclk)
++        reset_control_deassert(i2s_tdm->hclk_reset);
++    if (reset_tx)
++        reset_control_deassert(i2s_tdm->tx_reset);
++    if (reset_rx)
++        reset_control_deassert(i2s_tdm->rx_reset);
++}
++
+ static void rockchip_i2s_tdm_start(struct rk_i2s_tdm_dev *i2s_tdm, int stream)
+ {
+     /* Check if stream is in pause state */
+     if (rockchip_i2s_tdm_is_paused(i2s_tdm, stream))
+         return;
+ 
+-    /* Start DMA first (fill FIFO) */
++    if (stream == SNDRV_PCM_STREAM_PLAYBACK)
++        rockchip_i2s_tdm_pre_start_reset(i2s_tdm);
++
++    /* Start DMA only after optional pre-start reset has settled. */
+     rockchip_i2s_tdm_dma_ctrl(i2s_tdm, stream, 1);
+ 
+     if (stream == SNDRV_PCM_STREAM_PLAYBACK && i2s_tdm->is_master_mode) {
+@@ -2939,6 +2975,31 @@
+ static DEVICE_ATTR(sync_gpio_enable, 0644,
+                    sync_gpio_enable_show, sync_gpio_enable_store);
+ 
++/* Independent playback START reset controls; values apply to next START. */
++#define PRE_START_RESET_ATTR(_name, _field) \
++static ssize_t pre_start_reset_##_name##_show(struct device *dev, \
++        struct device_attribute *attr, char *buf) \
++{ \
++    struct rk_i2s_tdm_dev *i2s_tdm = dev_get_drvdata(dev); \
++    return sprintf(buf, "%u\n", i2s_tdm->_field ? 1 : 0); \
++} \
++static ssize_t pre_start_reset_##_name##_store(struct device *dev, \
++        struct device_attribute *attr, const char *buf, size_t count) \
++{ \
++    struct rk_i2s_tdm_dev *i2s_tdm = dev_get_drvdata(dev); \
++    unsigned int enable; \
++    if (kstrtouint(buf, 10, &enable) || enable > 1) \
++        return -EINVAL; \
++    i2s_tdm->_field = !!enable; \
++    return count; \
++} \
++static DEVICE_ATTR(pre_start_reset_##_name, 0644, \
++        pre_start_reset_##_name##_show, pre_start_reset_##_name##_store)
++
++PRE_START_RESET_ATTR(hclk, pre_start_reset_hclk);
++PRE_START_RESET_ATTR(tx, pre_start_reset_tx);
++PRE_START_RESET_ATTR(rx, pre_start_reset_rx);
++
+ /* Pinctrl state control sysfs interface for BCK/LRCLK isolation */
+ static ssize_t pinctrl_state_show(struct device *dev,
+                                   struct device_attribute *attr,
+@@ -4239,6 +4300,9 @@
+     i2s_tdm->sync_irq = -1;
+     i2s_tdm->sync_irq_armed = false;
+     i2s_tdm->sync_gpio_enable = true;
++    i2s_tdm->pre_start_reset_hclk = true;
++    i2s_tdm->pre_start_reset_tx = true;
++    i2s_tdm->pre_start_reset_rx = true;
+ 
+     of_id = of_match_device(rockchip_i2s_tdm_match, &pdev->dev);
+     if (!of_id)
+@@ -4586,6 +4650,10 @@
+         dev_err(&pdev->dev, "Failed to create sync_gpio_enable sysfs attribute: %d\n", ret);
+     }
+ 
++    device_create_file(&pdev->dev, &dev_attr_pre_start_reset_hclk);
++    device_create_file(&pdev->dev, &dev_attr_pre_start_reset_tx);
++    device_create_file(&pdev->dev, &dev_attr_pre_start_reset_rx);
++
+     /* Create sysfs attribute for mute control */
+     ret = device_create_file(&pdev->dev, &dev_attr_mute);
+     if (ret) {
+@@ -4641,6 +4709,9 @@
+     device_remove_file(&pdev->dev, &dev_attr_freq_domain_invert);
+     device_remove_file(&pdev->dev, &dev_attr_master_start_delay_ms);
+     device_remove_file(&pdev->dev, &dev_attr_sync_gpio_enable);
++    device_remove_file(&pdev->dev, &dev_attr_pre_start_reset_hclk);
++    device_remove_file(&pdev->dev, &dev_attr_pre_start_reset_tx);
++    device_remove_file(&pdev->dev, &dev_attr_pre_start_reset_rx);
+     device_remove_file(&pdev->dev, &dev_attr_drift_ppb);
+     device_remove_file(&pdev->dev, &dev_attr_pointer_offset);
+     device_remove_file(&pdev->dev, &dev_attr_frame_counter);
