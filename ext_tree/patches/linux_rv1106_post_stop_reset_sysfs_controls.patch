@@ -76,12 +76,12 @@
  static ssize_t pinctrl_state_show(struct device *dev,
                                    struct device_attribute *attr,
 @@ -4303,6 +4338,9 @@
-     i2s_tdm->pre_start_reset_hclk = true;
+     i2s_tdm->pre_start_reset_hclk = false;
      i2s_tdm->pre_start_reset_tx = true;
-     i2s_tdm->pre_start_reset_rx = true;
-+    i2s_tdm->post_stop_reset_hclk = true;
-+    i2s_tdm->post_stop_reset_tx = true;
-+    i2s_tdm->post_stop_reset_rx = true;
+     i2s_tdm->pre_start_reset_rx = false;
++    i2s_tdm->post_stop_reset_hclk = false;
++    i2s_tdm->post_stop_reset_tx = false;
++    i2s_tdm->post_stop_reset_rx = false;
  
      of_id = of_match_device(rockchip_i2s_tdm_match, &pdev->dev);
      if (!of_id)

@@ -94,9 +94,9 @@
      i2s_tdm->sync_irq = -1;
      i2s_tdm->sync_irq_armed = false;
      i2s_tdm->sync_gpio_enable = true;
-+    i2s_tdm->pre_start_reset_hclk = true;
++    i2s_tdm->pre_start_reset_hclk = false;
 +    i2s_tdm->pre_start_reset_tx = true;
-+    i2s_tdm->pre_start_reset_rx = true;
++    i2s_tdm->pre_start_reset_rx = false;
  
      of_id = of_match_device(rockchip_i2s_tdm_match, &pdev->dev);
      if (!of_id)

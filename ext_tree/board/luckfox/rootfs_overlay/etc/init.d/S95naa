@@ -1,21 +1,21 @@
 #!/bin/sh
 
-LOG=/tmp/log
+#LOG=/tmp/log
 
 start() {
     printf "Starting NAA: "
-    : > "$LOG"
-    {
-        echo "=== networkaudiod start $(date +%s) ==="
-        echo "launcher: S95naa"
-    } >> "$LOG"
 
-    # Use drain wrapper on both nodes for synchronized stop behavior.
     echo 500 > /sys/devices/platform/ffae0000.i2s/master_start_delay_ms
+    echo 0 > /sys/devices/platform/ffae0000.i2s/post_stop_reset_hclk
+    echo 0 > /sys/devices/platform/ffae0000.i2s/post_stop_reset_rx
+    echo 0 > /sys/devices/platform/ffae0000.i2s/post_stop_reset_tx
+    echo 0 > /sys/devices/platform/ffae0000.i2s/pre_start_reset_hclk
+    echo 0 > /sys/devices/platform/ffae0000.i2s/pre_start_reset_rx
+
     if [ -f /usr/lib/libasound_nodrain.so ]; then
-        LD_PRELOAD=/usr/lib/libasound_nodrain.so /usr/sbin/networkaudiod >> "$LOG" 2>&1 &
+        LD_PRELOAD=/usr/lib/libasound_nodrain.so /usr/sbin/networkaudiod &
     else
-        /usr/sbin/networkaudiod >> "$LOG" 2>&1 &
+        /usr/sbin/networkaudiod &
     fi
 
     sleep 0.5
