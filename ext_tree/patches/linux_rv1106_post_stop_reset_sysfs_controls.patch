@@ -1,0 +1,107 @@
+--- a/sound/soc/rockchip/rockchip_i2s_tdm.c
++++ b/sound/soc/rockchip/rockchip_i2s_tdm.c
+@@ -151,6 +151,9 @@
+     bool pre_start_reset_hclk;      /* playback START: assert/deassert HCLK reset */
+     bool pre_start_reset_tx;        /* playback START: assert/deassert TX reset */
+     bool pre_start_reset_rx;        /* playback START: assert/deassert RX reset */
++    bool post_stop_reset_hclk;      /* playback STOP: assert/deassert HCLK reset */
++    bool post_stop_reset_tx;        /* playback STOP: assert/deassert TX reset */
++    bool post_stop_reset_rx;        /* playback STOP: assert/deassert RX reset */
+     bool freq_domain_invert;        // Invert frequency domain GPIO polarity
+     
+     /* MCLK multiplier for switching 512/1024 */
+@@ -916,18 +919,26 @@
+ /* Serializer reset after a completed playback STOP; no diagnostic I/O here. */
+ static void rockchip_i2s_tdm_post_stop_reset(struct rk_i2s_tdm_dev *i2s_tdm)
+ {
+-    if (!i2s_tdm->tx_reset || !i2s_tdm->rx_reset)
++    bool reset_hclk = i2s_tdm->post_stop_reset_hclk && i2s_tdm->hclk_reset;
++    bool reset_tx = i2s_tdm->post_stop_reset_tx && i2s_tdm->tx_reset;
++    bool reset_rx = i2s_tdm->post_stop_reset_rx && i2s_tdm->rx_reset;
++
++    if (!reset_hclk && !reset_tx && !reset_rx)
+         return;
+ 
+-    if (i2s_tdm->hclk_reset)
++    if (reset_hclk)
+         reset_control_assert(i2s_tdm->hclk_reset);
+-    reset_control_assert(i2s_tdm->tx_reset);
+-    reset_control_assert(i2s_tdm->rx_reset);
++    if (reset_tx)
++        reset_control_assert(i2s_tdm->tx_reset);
++    if (reset_rx)
++        reset_control_assert(i2s_tdm->rx_reset);
+     udelay(100);
+-    if (i2s_tdm->hclk_reset)
++    if (reset_hclk)
+         reset_control_deassert(i2s_tdm->hclk_reset);
+-    reset_control_deassert(i2s_tdm->tx_reset);
+-    reset_control_deassert(i2s_tdm->rx_reset);
++    if (reset_tx)
++        reset_control_deassert(i2s_tdm->tx_reset);
++    if (reset_rx)
++        reset_control_deassert(i2s_tdm->rx_reset);
+ }
+ 
+ static void rockchip_i2s_tdm_stop(struct rk_i2s_tdm_dev *i2s_tdm, int stream)
+@@ -3000,6 +3011,30 @@
+ PRE_START_RESET_ATTR(tx, pre_start_reset_tx);
+ PRE_START_RESET_ATTR(rx, pre_start_reset_rx);
+ 
++#define POST_STOP_RESET_ATTR(_name, _field) \
++static ssize_t post_stop_reset_##_name##_show(struct device *dev, \
++        struct device_attribute *attr, char *buf) \
++{ \
++    struct rk_i2s_tdm_dev *i2s_tdm = dev_get_drvdata(dev); \
++    return sprintf(buf, "%u\n", i2s_tdm->_field ? 1 : 0); \
++} \
++static ssize_t post_stop_reset_##_name##_store(struct device *dev, \
++        struct device_attribute *attr, const char *buf, size_t count) \
++{ \
++    struct rk_i2s_tdm_dev *i2s_tdm = dev_get_drvdata(dev); \
++    unsigned int enable; \
++    if (kstrtouint(buf, 10, &enable) || enable > 1) \
++        return -EINVAL; \
++    i2s_tdm->_field = !!enable; \
++    return count; \
++} \
++static DEVICE_ATTR(post_stop_reset_##_name, 0644, \
++        post_stop_reset_##_name##_show, post_stop_reset_##_name##_store)
++
++POST_STOP_RESET_ATTR(hclk, post_stop_reset_hclk);
++POST_STOP_RESET_ATTR(tx, post_stop_reset_tx);
++POST_STOP_RESET_ATTR(rx, post_stop_reset_rx);
++
+ /* Pinctrl state control sysfs interface for BCK/LRCLK isolation */
+ static ssize_t pinctrl_state_show(struct device *dev,
+                                   struct device_attribute *attr,
+@@ -4303,6 +4338,9 @@
+     i2s_tdm->pre_start_reset_hclk = true;
+     i2s_tdm->pre_start_reset_tx = true;
+     i2s_tdm->pre_start_reset_rx = true;
++    i2s_tdm->post_stop_reset_hclk = true;
++    i2s_tdm->post_stop_reset_tx = true;
++    i2s_tdm->post_stop_reset_rx = true;
+ 
+     of_id = of_match_device(rockchip_i2s_tdm_match, &pdev->dev);
+     if (!of_id)
+@@ -4653,6 +4691,9 @@
+     device_create_file(&pdev->dev, &dev_attr_pre_start_reset_hclk);
+     device_create_file(&pdev->dev, &dev_attr_pre_start_reset_tx);
+     device_create_file(&pdev->dev, &dev_attr_pre_start_reset_rx);
++    device_create_file(&pdev->dev, &dev_attr_post_stop_reset_hclk);
++    device_create_file(&pdev->dev, &dev_attr_post_stop_reset_tx);
++    device_create_file(&pdev->dev, &dev_attr_post_stop_reset_rx);
+ 
+     /* Create sysfs attribute for mute control */
+     ret = device_create_file(&pdev->dev, &dev_attr_mute);
+@@ -4712,6 +4753,9 @@
+     device_remove_file(&pdev->dev, &dev_attr_pre_start_reset_hclk);
+     device_remove_file(&pdev->dev, &dev_attr_pre_start_reset_tx);
+     device_remove_file(&pdev->dev, &dev_attr_pre_start_reset_rx);
++    device_remove_file(&pdev->dev, &dev_attr_post_stop_reset_hclk);
++    device_remove_file(&pdev->dev, &dev_attr_post_stop_reset_tx);
++    device_remove_file(&pdev->dev, &dev_attr_post_stop_reset_rx);
+     device_remove_file(&pdev->dev, &dev_attr_drift_ppb);
+     device_remove_file(&pdev->dev, &dev_attr_pointer_offset);
+     device_remove_file(&pdev->dev, &dev_attr_frame_counter);
