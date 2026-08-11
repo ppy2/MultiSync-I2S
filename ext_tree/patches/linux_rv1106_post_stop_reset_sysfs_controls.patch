@@ -77,7 +77,7 @@
                                    struct device_attribute *attr,
 @@ -4303,6 +4338,9 @@
      i2s_tdm->pre_start_reset_hclk = false;
-     i2s_tdm->pre_start_reset_tx = true;
+     i2s_tdm->pre_start_reset_tx = false;
      i2s_tdm->pre_start_reset_rx = false;
 +    i2s_tdm->post_stop_reset_hclk = false;
 +    i2s_tdm->post_stop_reset_tx = false;
