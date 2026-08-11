@@ -1,0 +1,81 @@
+--- a/sound/soc/rockchip/rockchip_i2s_tdm.c
++++ b/sound/soc/rockchip/rockchip_i2s_tdm.c
+@@ -3024,7 +3024,9 @@
+                               const char *buf, size_t count)
+ {
+     struct rk_i2s_tdm_dev *i2s_tdm = dev_get_drvdata(dev);
+-    int enable;
++    unsigned int xfer, dmacr, fifolr, intsr, clr, txcr, rxcr, ckr;
++    int enable, a_h = 0, a_tx, a_rx, d_h = 0, d_tx, d_rx;
++    int s_a_h = -ENODEV, s_a_tx, s_a_rx, s_d_h = -ENODEV, s_d_tx, s_d_rx;
+ 
+     if (sscanf(buf, "%d", &enable) != 1 || enable != 1)
+         return -EINVAL;
+@@ -3034,25 +3036,53 @@
+         return -ENODEV;
+     }
+ 
+-    /* Perform full I2S block reset to clear clock synchronizer state */
+-    /* Order: HCLK (bus) -> TX/RX (datapath) */
++    /* Full I2S reset used by onstop. Capture the reset API result, CRU
++     * status (when supported), then the controller-visible state once released. */
+     if (i2s_tdm->hclk_reset) {
+-        reset_control_assert(i2s_tdm->hclk_reset);
++        a_h = reset_control_assert(i2s_tdm->hclk_reset);
++        if (a_h)
++            return a_h;
++        s_a_h = reset_control_status(i2s_tdm->hclk_reset);
+     }
+-    reset_control_assert(i2s_tdm->tx_reset);
+-    reset_control_assert(i2s_tdm->rx_reset);
+-    udelay(100);  /* Increased from 10us to 100us for complete clock synchronizer reset */
++    a_tx = reset_control_assert(i2s_tdm->tx_reset);
++    if (a_tx)
++        return a_tx;
++    a_rx = reset_control_assert(i2s_tdm->rx_reset);
++    if (a_rx)
++        return a_rx;
++    s_a_tx = reset_control_status(i2s_tdm->tx_reset);
++    s_a_rx = reset_control_status(i2s_tdm->rx_reset);
++    udelay(100);
+     if (i2s_tdm->hclk_reset) {
+-        reset_control_deassert(i2s_tdm->hclk_reset);
++        d_h = reset_control_deassert(i2s_tdm->hclk_reset);
++        if (d_h)
++            return d_h;
++        s_d_h = reset_control_status(i2s_tdm->hclk_reset);
+     }
+-    reset_control_deassert(i2s_tdm->tx_reset);
+-    reset_control_deassert(i2s_tdm->rx_reset);
++    d_tx = reset_control_deassert(i2s_tdm->tx_reset);
++    if (d_tx)
++        return d_tx;
++    d_rx = reset_control_deassert(i2s_tdm->rx_reset);
++    if (d_rx)
++        return d_rx;
++    s_d_tx = reset_control_status(i2s_tdm->tx_reset);
++    s_d_rx = reset_control_status(i2s_tdm->rx_reset);
++    udelay(10);
+ 
+-    if (i2s_tdm->hclk_reset) {
+-        dev_info(dev, "Full I2S block reset performed (HCLK+TX+RX)\n");
+-    } else {
+-        dev_info(dev, "TX/RX reset performed\n");
+-    }
++    regmap_read(i2s_tdm->regmap, I2S_XFER, &xfer);
++    regmap_read(i2s_tdm->regmap, I2S_DMACR, &dmacr);
++    regmap_read(i2s_tdm->regmap, I2S_TXFIFOLR, &fifolr);
++    regmap_read(i2s_tdm->regmap, I2S_INTSR, &intsr);
++    regmap_read(i2s_tdm->regmap, I2S_CLR, &clr);
++    regmap_read(i2s_tdm->regmap, I2S_TXCR, &txcr);
++    regmap_read(i2s_tdm->regmap, I2S_RXCR, &rxcr);
++    regmap_read(i2s_tdm->regmap, I2S_CKR, &ckr);
++    dev_info(dev,
++        "I2S_RESET_READBACK: api[a h=%d tx=%d rx=%d d h=%d tx=%d rx=%d] status[a h=%d tx=%d rx=%d d h=%d tx=%d rx=%d] XFER=%08x DMACR=%08x FIFOLR=%08x INTSR=%08x CLR=%08x TXCR=%08x RXCR=%08x CKR=%08x\n",
++        a_h, a_tx, a_rx, d_h, d_tx, d_rx, s_a_h, s_a_tx, s_a_rx,
++        s_d_h, s_d_tx, s_d_rx, xfer, dmacr, fifolr, intsr, clr, txcr,
++        rxcr, ckr);
++    dev_info(dev, "Full I2S block reset performed (HCLK+TX+RX)\n");
+ 
+     return count;
+ }

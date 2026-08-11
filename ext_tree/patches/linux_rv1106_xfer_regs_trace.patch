@@ -1,0 +1,44 @@
+--- a/sound/soc/rockchip/rockchip_i2s_tdm.c
++++ b/sound/soc/rockchip/rockchip_i2s_tdm.c
+@@ -2513,6 +2513,23 @@
+     mutex_unlock(&i2s_tdm->mute_lock);
+ }
+ 
++/* Read-only post-TXS hardware snapshot for first-DATA diagnosis. */
++static void rockchip_i2s_tdm_log_xfer_regs(struct rk_i2s_tdm_dev *i2s_tdm,
++                                           const char *where)
++{
++    unsigned int xfer, txcr, dmacr, fifolr, intsr;
++
++    regmap_read(i2s_tdm->regmap, I2S_XFER, &xfer);
++    regmap_read(i2s_tdm->regmap, I2S_TXCR, &txcr);
++    regmap_read(i2s_tdm->regmap, I2S_DMACR, &dmacr);
++    regmap_read(i2s_tdm->regmap, I2S_TXFIFOLR, &fifolr);
++    regmap_read(i2s_tdm->regmap, I2S_INTSR, &intsr);
++    dev_info(i2s_tdm->dev,
++             "XFER_REG_SNAPSHOT: %s at %lld ns XFER=0x%08x TXCR=0x%08x DMACR=0x%08x FIFOLR=0x%08x INTSR=0x%08x\n",
++             where, ktime_to_ns(ktime_get_real()), xfer, txcr, dmacr,
++             fifolr, intsr);
++}
++
+ /* Slave HW sync IRQ handler — fires when master pulses GPIO1_C7 after BCK starts */
+ static irqreturn_t rockchip_i2s_tdm_sync_irq(int irq, void *dev_id)
+ {
+@@ -2532,6 +2549,8 @@
+     else
+         rockchip_i2s_tdm_xfer_start(i2s_tdm, SNDRV_PCM_STREAM_PLAYBACK);
+ 
++    rockchip_i2s_tdm_log_xfer_regs(i2s_tdm, "slave-sync");
++
+     dev_info(i2s_tdm->dev,
+              "HW_SYNC_IRQ: SLAVE XFER enabled at %lld ns (waiting for master BCLK)\n",
+              ktime_to_ns(ktime_get_real()));
+@@ -2572,6 +2591,8 @@
+     else
+         rockchip_i2s_tdm_xfer_start(i2s_tdm, SNDRV_PCM_STREAM_PLAYBACK);
+ 
++    rockchip_i2s_tdm_log_xfer_regs(i2s_tdm, "master-xfer");
++
+     dev_info(i2s_tdm->dev,
+              "MASTER_XFER: BCLK started at %lld ns (delayed %u ms + 1 ms GPIO), unmute in %u ms\n",
+              ktime_to_ns(ktime_get_real()), i2s_tdm->master_start_delay_ms,

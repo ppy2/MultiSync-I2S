@@ -1,0 +1,39 @@
+--- a/sound/soc/rockchip/rockchip_i2s_tdm.c
++++ b/sound/soc/rockchip/rockchip_i2s_tdm.c
+@@ -813,12 +813,6 @@
+     if (rockchip_i2s_tdm_is_paused(i2s_tdm, stream))
+         return;
+ 
+-    /* New playback generation: assert common C6 marker low before local arm. */
+-    if (stream == SNDRV_PCM_STREAM_PLAYBACK && i2s_tdm->ready_gpio) {
+-        gpiod_set_value(i2s_tdm->ready_gpio, 0);
+-        i2s_tdm->data_marker_released = false;
+-    }
+-
+     /* Start DMA first (fill FIFO) */
+     rockchip_i2s_tdm_log_xfer_regs(i2s_tdm, "trigger-start-before-dma");
+     rockchip_i2s_tdm_dma_ctrl(i2s_tdm, stream, 1);
+@@ -3247,14 +3241,6 @@
+         if (copy_from_user(dma_area, buf, bytes))
+             return -EFAULT;
+ 
+-        /* Diagnostic only: first real userspace PCM write for this generation. */
+-        if (i2s_tdm->ready_gpio && !i2s_tdm->data_marker_released) {
+-            i2s_tdm->data_marker_released = true;
+-            gpiod_set_value(i2s_tdm->ready_gpio, 1);
+-            dev_info(i2s_tdm->dev,
+-                     "C6 marker released at first PCM copy: %lu bytes\n", bytes);
+-        }
+-        
+         /* DSD MUTE: Replace data with silence signal (50% duty cycle) */
+         /* DSD requires digital silence (meander) - both user and auto mute */
+         if ((i2s_tdm->mute || i2s_tdm->auto_mute_active) && i2s_tdm->dsd_mode_active &&
+@@ -4266,7 +4252,7 @@
+     }
+ 
+     /* Initialize C6 diagnostic READY marker. Open-drain low is safe on shared bus. */
+-    i2s_tdm->ready_gpio = devm_gpiod_get_optional(&pdev->dev, "ready", GPIOD_OUT_LOW);
++    i2s_tdm->ready_gpio = devm_gpiod_get_optional(&pdev->dev, "ready", GPIOD_IN);
+     if (IS_ERR(i2s_tdm->ready_gpio)) {
+         i2s_tdm->ready_gpio = NULL;
+     } else if (i2s_tdm->ready_gpio) {

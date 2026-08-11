@@ -1,29 +1,19 @@
 # Chrony configuration for SLAVE node
-# Tight tracking of master, smooth during playback
+# Local master is the sole source. No playback-time hooks are permitted.
 
-# Master node as sole time source
-# minpoll 2 = 4s, maxpoll 5 = 32s - tight tracking on local network
-server master iburst prefer minpoll 2 maxpoll 5
+# xleave enables interleaved NTP when supported by chronyd on master. Keep the
+# LAN estimate fresh every 4–8 seconds without per-playback chrony work.
+server master xleave iburst prefer minpoll 2 maxpoll 3
 
 # NO internet NTP - only master
 
-# Record clock drift
 driftfile /var/lib/chrony/drift
-
-# Sync kernel RTC
 rtcsync
 
-# Allow steps ONLY during first 3 updates after boot
-makestep 1.0 3
-
-# After boot: NO automatic stepping, slew only
-# Forced step is done explicitly in onstart_slave.sh before playback
-
-# Smooth slew rate during playback
+# Initial acquisition always applies one immediate correction, even for a
+# sub-second offset. After that first update, all corrections are slew-only.
+makestep 0.0 1
+# Smooth bounded corrections while the NAA daemon is running.
 maxslewrate 20
-
-# Gradual corrections
 corrtimeratio 10
-
-# Single source OK
 minsources 1

@@ -12,12 +12,9 @@ driftfile /var/lib/chrony/drift
 # Sync kernel RTC
 rtcsync
 
-# Allow steps ONLY during first 3 updates after boot
-# (RTC could be minutes/hours off after power loss)
-makestep 1.0 3
-
-# NO makestep after boot! Only smooth slewing.
-# Old: makestep 0.1 -1  <-- REMOVED: caused time jumps
+# Initial acquisition always applies one immediate correction, even for a
+# sub-second offset. After that first update, all corrections are slew-only.
+makestep 0.0 1
 
 # Very slow slew rate: max 10 ppm frequency adjustment
 # At 10 ppm, correcting 1ms takes 100 seconds - very smooth

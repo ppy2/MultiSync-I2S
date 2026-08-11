@@ -53,7 +53,7 @@
 		dsd-enable-gpios = <&gpio1 RK_PD0 GPIO_ACTIVE_HIGH>;
 		freq-domain-gpios = <&gpio1 RK_PD1 GPIO_ACTIVE_HIGH>;
 		freq-domain-inv-gpios = <&gpio1 RK_PC5 GPIO_ACTIVE_HIGH>;
-		hires-gpios = <&gpio1 RK_PC6 GPIO_ACTIVE_HIGH>;
+		ready-gpios = <&gpio1 RK_PC6 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
 		sync-gpios = <&gpio1 RK_PC7 GPIO_ACTIVE_HIGH>;
                 pinctrl-names = "default";
 	        pinctrl-0 = <&i2s0_lrck
@@ -68,7 +68,7 @@
 				&mute_inv_gpio
 				&dsd_on_gpio
 				&freq_domain_inv_gpio
-				&hires_gpio
+				&ready_gpio
 				&sync_gpio>;
 	        status = "okay";                     
 	};

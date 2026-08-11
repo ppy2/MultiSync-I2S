@@ -1,0 +1,184 @@
+--- a/sound/soc/rockchip/rockchip_i2s_tdm.c
++++ b/sound/soc/rockchip/rockchip_i2s_tdm.c
+@@ -142,11 +142,15 @@
+     struct gpio_desc *freq_domain_gpio;  /* Frequency domain indicator GPIO (GPIO1_D1) 44.1/48 kHz */
+     struct gpio_desc *freq_domain_inv_gpio;  /* Inverted freq domain output (GPIO1_C5) */
+     struct gpio_desc *hires_gpio;  /* Hi-Res indicator GPIO (GPIO1_C6) — active for 352.8/384 kHz */
+-    struct gpio_desc *ready_gpio;  /* C6 diagnostic marker */
+-    bool data_marker_released;      /* first PCM copy marker per playback generation */
++    struct gpio_desc *ready_gpio;  /* C6 wired-AND FIFO armed indication */
++    struct delayed_work fifo_ready_work;
++    bool fifo_ready_armed;
++    bool fifo_ready_released;
++    bool c6_seen_low;
++    unsigned int fifo_ready_ticks;
+     struct gpio_desc *sync_gpio;   /* HW sync wire GPIO1_C7: master=OUT, slave=IN */
+-    int sync_irq;                  /* slave: GPIO interrupt number (-1 if unused) */
+-    bool sync_irq_armed;           /* slave: IRQ is armed, waiting for master pulse */
++    int sync_irq;
++    bool sync_irq_armed;
+     bool freq_domain_invert;        // Invert frequency domain GPIO polarity
+     
+     /* MCLK multiplier for switching 512/1024 */
+@@ -298,6 +302,7 @@
+     }
+ }
+ 
++static void rockchip_i2s_tdm_fifo_ready_work(struct work_struct *work);
+ static void rockchip_i2s_tdm_mute_post_work(struct work_struct *work);
+ static void rockchip_i2s_tdm_unmute_work(struct work_struct *work);
+ static void rockchip_i2s_tdm_master_xfer_work(struct work_struct *work);
+@@ -816,28 +821,29 @@
+         return;
+ 
+     /* New playback generation: assert common C6 marker low before local arm. */
+-    if (stream == SNDRV_PCM_STREAM_PLAYBACK && i2s_tdm->ready_gpio) {
+-        gpiod_set_value(i2s_tdm->ready_gpio, 0);
+-        i2s_tdm->data_marker_released = false;
++    if (stream == SNDRV_PCM_STREAM_PLAYBACK) {
++        if (i2s_tdm->ready_gpio) {
++            if (i2s_tdm->is_master_mode)
++                gpiod_direction_output(i2s_tdm->ready_gpio, 0);
++            else
++                gpiod_set_value(i2s_tdm->ready_gpio, 0);
++        }
++        i2s_tdm->fifo_ready_armed = true;
++        i2s_tdm->fifo_ready_released = false;
++        i2s_tdm->c6_seen_low = false;
++        i2s_tdm->fifo_ready_ticks = 0;
+     }
+ 
+-    /* Start DMA first (fill FIFO) */
++    /* DMA may prefill local FIFO; TXS remains stopped until C7 commit. */
+     rockchip_i2s_tdm_dma_ctrl(i2s_tdm, stream, 1);
++    if (stream == SNDRV_PCM_STREAM_PLAYBACK)
++        schedule_delayed_work(&i2s_tdm->fifo_ready_work, 0);
+ 
+     if (stream == SNDRV_PCM_STREAM_PLAYBACK && i2s_tdm->is_master_mode) {
+-        /*
+-         * MASTER: delay I2S_XFER (BCLK start) via delayed_work.
+-         * This guarantees slave has time to set I2S_XFER first,
+-         * regardless of HQPlayer trigger order.
+-         * DMA fills FIFO during the wait; FIFO doesn't drain without BCLK.
+-         */
+-        i2s_tdm->xfer_pending = true;
+-        schedule_delayed_work(&i2s_tdm->master_xfer_work,
+-                              msecs_to_jiffies(i2s_tdm->master_start_delay_ms));
+-        dev_info(i2s_tdm->dev,
+-                 "START: MASTER DMA enabled, BCLK scheduled in %u ms at %lld ns\n",
+-                 i2s_tdm->master_start_delay_ms, ktime_to_ns(ktime_get_real()));
+-        return; /* I2S_XFER will be set by master_xfer_work */
++        /* FIFO-ready worker emits C7 only after all local TX FIFOs are armed. */
++        dev_info(i2s_tdm->dev, "START: MASTER DMA armed; waiting C6 FIFO_READY at %lld ns\n",
++                 ktime_to_ns(ktime_get_real()));
++        return;
+     }
+ 
+     /* SLAVE: use GPIO hardware sync if available — XFER set by IRQ when master BCK starts */
+@@ -882,6 +888,13 @@
+ 
+ static void rockchip_i2s_tdm_stop(struct rk_i2s_tdm_dev *i2s_tdm, int stream)
+ {
++    if (stream == SNDRV_PCM_STREAM_PLAYBACK) {
++        i2s_tdm->fifo_ready_armed = false;
++        cancel_delayed_work(&i2s_tdm->fifo_ready_work);
++        if (!i2s_tdm->is_master_mode && i2s_tdm->ready_gpio)
++            gpiod_set_value(i2s_tdm->ready_gpio, 0);
++    }
++
+     /* Cancel pending master BCLK start if not yet fired */
+     if (stream == SNDRV_PCM_STREAM_PLAYBACK && i2s_tdm->is_master_mode) {
+         i2s_tdm->xfer_pending = false;
+@@ -1004,11 +1017,15 @@
+     /* Configure sync GPIO as output (LOW = idle, HIGH = BCK started) */
+     if (i2s_tdm->sync_gpio)
+         gpiod_direction_output(i2s_tdm->sync_gpio, 0);
++    if (i2s_tdm->ready_gpio)
++        gpiod_direction_input(i2s_tdm->ready_gpio);
+     break;
+     case SND_SOC_DAIFMT_CBM_CFM:
+     val = I2S_CKR_MSS_SLAVE;
+     i2s_tdm->is_master_mode = false;
+-    /* Configure sync GPIO as input and request rising-edge IRQ (once) */
++    /* Configure C7 input/IRQ and C6 wired-AND output-low until FIFO armed. */
++    if (i2s_tdm->ready_gpio)
++        gpiod_direction_output(i2s_tdm->ready_gpio, 0);
+     if (i2s_tdm->sync_gpio && i2s_tdm->sync_irq < 0) {
+         int irq;
+         gpiod_direction_input(i2s_tdm->sync_gpio);
+@@ -2488,6 +2505,53 @@
+     mutex_unlock(&i2s_tdm->mute_lock);
+ }
+ 
++/* C6 READY: release only after every TX FIFO has a safe prefill level. */
++static void rockchip_i2s_tdm_fifo_ready_work(struct work_struct *work)
++{
++    struct rk_i2s_tdm_dev *i2s_tdm = container_of(work, struct rk_i2s_tdm_dev, fifo_ready_work.work);
++    unsigned int fifolr, f0, f1, f2, f3;
++
++    if (!i2s_tdm->fifo_ready_armed || i2s_tdm->fifo_ready_released)
++        return;
++    regmap_read(i2s_tdm->regmap, I2S_TXFIFOLR, &fifolr);
++    f0 = (fifolr >> I2S_FIFOLR_TFL0_SHIFT) & 0x3f;
++    f1 = (fifolr >> I2S_FIFOLR_TFL1_SHIFT) & 0x3f;
++    f2 = (fifolr >> I2S_FIFOLR_TFL2_SHIFT) & 0x3f;
++    f3 = (fifolr >> I2S_FIFOLR_TFL3_SHIFT) & 0x3f;
++    i2s_tdm->fifo_ready_ticks++;
++    if (f0 >= 8 && f1 >= 8 && f2 >= 8 && f3 >= 8) {
++        i2s_tdm->fifo_ready_released = true;
++        if (!i2s_tdm->is_master_mode) {
++            if (i2s_tdm->ready_gpio)
++                gpiod_set_value(i2s_tdm->ready_gpio, 1);
++            dev_info(i2s_tdm->dev, "C6 FIFO_READY slave released FIFOLR=0x%08x ticks=%u\n",
++                     fifolr, i2s_tdm->fifo_ready_ticks);
++            return;
++        }
++        if (i2s_tdm->is_master_mode) {
++            if (i2s_tdm->fifo_ready_ticks < 5) {
++                i2s_tdm->fifo_ready_released = false;
++                schedule_delayed_work(&i2s_tdm->fifo_ready_work, msecs_to_jiffies(1));
++                return;
++            }
++            if (i2s_tdm->ready_gpio)
++                gpiod_direction_input(i2s_tdm->ready_gpio);
++            if (i2s_tdm->ready_gpio && gpiod_get_value(i2s_tdm->ready_gpio)) {
++                i2s_tdm->fifo_ready_released = true;
++                i2s_tdm->xfer_pending = true;
++                schedule_delayed_work(&i2s_tdm->master_xfer_work, 0);
++                dev_info(i2s_tdm->dev, "C6 FIFO_READY all armed FIFOLR=0x%08x; committing C7\n", fifolr);
++                return;
++            }
++            i2s_tdm->fifo_ready_released = false;
++        }
++    }
++    if (i2s_tdm->fifo_ready_ticks < 500)
++        schedule_delayed_work(&i2s_tdm->fifo_ready_work, msecs_to_jiffies(1));
++    else
++        dev_warn(i2s_tdm->dev, "C6 FIFO_READY timeout FIFOLR=0x%08x\n", fifolr);
++}
++
+ /* Unmute delayed_work callback (runs in separate kworker thread - zero jitter on data path) */
+ static void rockchip_i2s_tdm_unmute_work(struct work_struct *work)
+ {
+@@ -3225,13 +3289,6 @@
+         if (copy_from_user(dma_area, buf, bytes))
+             return -EFAULT;
+ 
+-        /* Diagnostic only: first real userspace PCM write for this generation. */
+-        if (i2s_tdm->ready_gpio && !i2s_tdm->data_marker_released) {
+-            i2s_tdm->data_marker_released = true;
+-            gpiod_set_value(i2s_tdm->ready_gpio, 1);
+-            dev_info(i2s_tdm->dev,
+-                     "C6 marker released at first PCM copy: %lu bytes\n", bytes);
+-        }
+         
+         /* DSD MUTE: Replace data with silence signal (50% duty cycle) */
+         /* DSD requires digital silence (meander) - both user and auto mute */
+@@ -4129,6 +4186,7 @@
+     i2s_tdm->auto_mute_active = true;
+     i2s_tdm->user_mute_priority = false;
+     mutex_init(&i2s_tdm->mute_lock);
++    INIT_DELAYED_WORK(&i2s_tdm->fifo_ready_work, rockchip_i2s_tdm_fifo_ready_work);
+     INIT_DELAYED_WORK(&i2s_tdm->mute_post_work, rockchip_i2s_tdm_mute_post_work);
+     INIT_DELAYED_WORK(&i2s_tdm->unmute_work, rockchip_i2s_tdm_unmute_work);
+     INIT_DELAYED_WORK(&i2s_tdm->master_xfer_work, rockchip_i2s_tdm_master_xfer_work);

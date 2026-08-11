@@ -1,0 +1,28 @@
+diff --git a/sound/core/pcm_dmaengine.c b/sound/core/pcm_dmaengine.c
+--- a/sound/core/pcm_dmaengine.c
++++ b/sound/core/pcm_dmaengine.c
+@@ -10,6 +10,7 @@
+  */
+ #include <linux/module.h>
+ #include <linux/init.h>
++#include <linux/ktime.h>
+ #include <linux/dmaengine.h>
+ #include <linux/slab.h>
+ #include <sound/pcm.h>
+@@ -27,2 +28,3 @@ struct dmaengine_pcm_runtime_data {
+ 	unsigned int pos;
++	bool first_period_logged;
+ };
+@@ -146,3 +148,12 @@ static void dmaengine_pcm_dma_complete(void *arg)
+ 	prtd = substream_to_prtd(substream);
++
++	/* Diagnostic only: first DMA period callback after runtime creation. */
++	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK &&
++	    !prtd->first_period_logged) {
++		prtd->first_period_logged = true;
++		pr_info("DMA_FIRST_PERIOD: pcm=%s bytes=%zu at %llu ns\n",
++			substream->name, snd_pcm_lib_period_bytes(substream),
++			ktime_to_ns(ktime_get_real()));
++	}
+ 
+ 	new_pos = prtd->pos + snd_pcm_lib_period_bytes(substream);

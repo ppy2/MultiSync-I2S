@@ -1,0 +1,93 @@
+--- a/sound/soc/rockchip/rockchip_i2s_tdm.c
++++ b/sound/soc/rockchip/rockchip_i2s_tdm.c
+@@ -147,6 +147,7 @@
+     struct gpio_desc *sync_gpio;   /* HW sync wire GPIO1_C7: master=OUT, slave=IN */
+     int sync_irq;                  /* slave: GPIO interrupt number (-1 if unused) */
+     bool sync_irq_armed;           /* slave: IRQ is armed, waiting for master pulse */
++    bool sync_gpio_enable;          /* runtime C7 path toggle; default enabled */
+     bool freq_domain_invert;        // Invert frequency domain GPIO polarity
+     
+     /* MCLK multiplier for switching 512/1024 */
+@@ -847,7 +848,8 @@
+     }
+ 
+     /* SLAVE: use GPIO hardware sync if available — XFER set by IRQ when master BCK starts */
+-    if (stream == SNDRV_PCM_STREAM_PLAYBACK && i2s_tdm->sync_irq >= 0) {
++    if (stream == SNDRV_PCM_STREAM_PLAYBACK && i2s_tdm->sync_gpio_enable &&
++        i2s_tdm->sync_irq >= 0) {
+         i2s_tdm->sync_irq_armed = true;
+         enable_irq(i2s_tdm->sync_irq);
+ 
+@@ -2607,7 +2609,7 @@
+      *   3. Enable BCLK — slave FIFO is already loaded with audio[0..N]
+      *      Both master and slave output audio[0] on the very first BCLK edge → BIT-EXACT
+      */
+-    if (i2s_tdm->sync_gpio) {
++    if (i2s_tdm->sync_gpio && i2s_tdm->sync_gpio_enable) {
+         gpiod_set_value(i2s_tdm->sync_gpio, 1);
+         dev_info(i2s_tdm->dev,
+                  "MASTER_XFER: sync GPIO pulsed HIGH at %lld ns — waiting 1 ms for slave XFER\n",
+@@ -2999,6 +3001,35 @@
+ 
+ static DEVICE_ATTR(master_start_delay_ms, 0644, master_start_delay_ms_show, master_start_delay_ms_store);
+ 
++/* Runtime C7 A/B switch. Changes take effect on the next playback START only. */
++static ssize_t sync_gpio_enable_show(struct device *dev,
++                                     struct device_attribute *attr, char *buf)
++{
++    struct rk_i2s_tdm_dev *i2s_tdm = dev_get_drvdata(dev);
++    return sprintf(buf, "%u\n", i2s_tdm->sync_gpio_enable ? 1 : 0);
++}
++
++static ssize_t sync_gpio_enable_store(struct device *dev,
++                                      struct device_attribute *attr,
++                                      const char *buf, size_t count)
++{
++    struct rk_i2s_tdm_dev *i2s_tdm = dev_get_drvdata(dev);
++    unsigned int enable;
++
++    if (kstrtouint(buf, 10, &enable) || enable > 1)
++        return -EINVAL;
++
++    i2s_tdm->sync_gpio_enable = !!enable;
++    if (!enable && i2s_tdm->sync_gpio)
++        gpiod_set_value(i2s_tdm->sync_gpio, 0);
++    dev_info(i2s_tdm->dev, "C7 sync GPIO %s; applies at next playback START\n",
++             enable ? "enabled" : "disabled");
++    return count;
++}
++
++static DEVICE_ATTR(sync_gpio_enable, 0644,
++                   sync_gpio_enable_show, sync_gpio_enable_store);
++
+ /* Pinctrl state control sysfs interface for BCK/LRCLK isolation */
+ static ssize_t pinctrl_state_show(struct device *dev,
+                                   struct device_attribute *attr,
+@@ -4338,6 +4369,7 @@
+     }
+     i2s_tdm->sync_irq = -1;
+     i2s_tdm->sync_irq_armed = false;
++    i2s_tdm->sync_gpio_enable = true;
+ 
+     of_id = of_match_device(rockchip_i2s_tdm_match, &pdev->dev);
+     if (!of_id)
+@@ -4680,6 +4712,11 @@
+         dev_err(&pdev->dev, "Failed to create master_start_delay_ms sysfs attribute: %d\n", ret);
+     }
+ 
++    ret = device_create_file(&pdev->dev, &dev_attr_sync_gpio_enable);
++    if (ret) {
++        dev_err(&pdev->dev, "Failed to create sync_gpio_enable sysfs attribute: %d\n", ret);
++    }
++
+     /* Create sysfs attribute for mute control */
+     ret = device_create_file(&pdev->dev, &dev_attr_mute);
+     if (ret) {
+@@ -4734,6 +4771,7 @@
+     device_remove_file(&pdev->dev, &dev_attr_dsd_physical_swap);
+     device_remove_file(&pdev->dev, &dev_attr_freq_domain_invert);
+     device_remove_file(&pdev->dev, &dev_attr_master_start_delay_ms);
++    device_remove_file(&pdev->dev, &dev_attr_sync_gpio_enable);
+     device_remove_file(&pdev->dev, &dev_attr_drift_ppb);
+     device_remove_file(&pdev->dev, &dev_attr_pointer_offset);
+     device_remove_file(&pdev->dev, &dev_attr_frame_counter);

@@ -1,0 +1,55 @@
+--- a/sound/soc/rockchip/rockchip_i2s_tdm.c
++++ b/sound/soc/rockchip/rockchip_i2s_tdm.c
+@@ -222,6 +222,19 @@
+ static void rockchip_i2s_tdm_tx_path_config(struct rk_i2s_tdm_dev *i2s_tdm, int num);
+ static void rockchip_i2s_tdm_log_xfer_regs(struct rk_i2s_tdm_dev *i2s_tdm, const char *where);
+ 
++/* C6 is a shared open-drain diagnostic marker only: LOW asserts, HIGH releases. */
++static inline void rockchip_i2s_tdm_c6_pulse(struct rk_i2s_tdm_dev *i2s_tdm,
++                                              const char *where)
++{
++    if (!i2s_tdm->ready_gpio || gpiod_cansleep(i2s_tdm->ready_gpio))
++        return;
++    gpiod_set_value(i2s_tdm->ready_gpio, 0);
++    udelay(10);
++    gpiod_set_value(i2s_tdm->ready_gpio, 1);
++    dev_info(i2s_tdm->dev, "C6_DIAG_PULSE: %s at %lld ns\n",
++             where, ktime_to_ns(ktime_get_real()));
++}
++
+ 
+ 
+ /* DSD physical channel swap function (I2S routing) */
+@@ -2533,6 +2546,9 @@
+     i2s_tdm->sync_irq_armed = false;
+     disable_irq_nosync(irq);
+ 
++    /* Hardware-timed marker at the first instruction of the GPIO IRQ path. */
++    rockchip_i2s_tdm_c6_pulse(i2s_tdm, "slave-irq");
++
+     /*
+      * Enable XFER now — master BCLK has NOT started yet (master waits 1 ms
+      * after pulsing GPIO before enabling BCLK).  Slave FIFO pre-fills with
+@@ -2574,6 +2590,7 @@
+      */
+     if (i2s_tdm->sync_gpio) {
+         gpiod_set_value(i2s_tdm->sync_gpio, 1);
++        rockchip_i2s_tdm_c6_pulse(i2s_tdm, "master-c7");
+         dev_info(i2s_tdm->dev,
+                  "MASTER_XFER: sync GPIO pulsed HIGH at %lld ns — waiting 1 ms for slave XFER\n",
+                  ktime_to_ns(ktime_get_real()));
+@@ -4286,7 +4303,13 @@
+     if (IS_ERR(i2s_tdm->ready_gpio)) {
+         i2s_tdm->ready_gpio = NULL;
+     } else if (i2s_tdm->ready_gpio) {
+-        dev_info(&pdev->dev, "C6 READY marker initialized (low until playback XFER)\n");
++        if (gpiod_cansleep(i2s_tdm->ready_gpio) ||
++            gpiod_direction_output(i2s_tdm->ready_gpio, 1)) {
++            dev_warn(&pdev->dev, "C6 diagnostic pulse disabled: GPIO cannot be used from IRQ\n");
++            i2s_tdm->ready_gpio = NULL;
++        } else {
++            dev_info(&pdev->dev, "C6 diagnostic pulse enabled (open-drain release)\n");
++        }
+     }
+ 
+     /* Initialize HW sync GPIO (GPIO1_C7) — direction set in set_fmt when role is known */

@@ -1,0 +1,53 @@
+--- a/sound/soc/rockchip/rockchip_i2s_tdm.c
++++ b/sound/soc/rockchip/rockchip_i2s_tdm.c
+@@ -2533,7 +2533,7 @@
+              fifolr, intsr);
+ }
+ 
+-/* Slave HW sync IRQ handler — fires when master pulses GPIO1_C7 after BCK starts */
++/* Slave HW sync IRQ handler — fires on the shared GPIO1_C7 edge. */
+ static irqreturn_t rockchip_i2s_tdm_sync_irq(int irq, void *dev_id)
+ {
+     struct rk_i2s_tdm_dev *i2s_tdm = dev_id;
+@@ -2542,10 +2542,9 @@
+     disable_irq_nosync(irq);
+ 
+     /*
+-     * Enable XFER now — master BCLK has NOT started yet (master waits 1 ms
+-     * after pulsing GPIO before enabling BCLK).  Slave FIFO pre-fills with
+-     * audio[0..N] while waiting.  When master BCLK arrives ~1 ms later,
+-     * both master and slave output audio[0] on the first BCLK edge → BIT-EXACT.
++     * Enable the slave serializer on the shared C7 boundary.  BCLK/LRCK may
++     * already be physically continuous across a seek, so this path must not
++     * assume that a later master XFER creates the first clock edge.
+      */
+     if (i2s_tdm->clk_trcm)
+         rockchip_i2s_tdm_xfer_trcm_start(i2s_tdm);
+@@ -2583,12 +2582,15 @@
+     if (i2s_tdm->sync_gpio) {
+         gpiod_set_value(i2s_tdm->sync_gpio, 1);
+         dev_info(i2s_tdm->dev,
+-                 "MASTER_XFER: sync GPIO pulsed HIGH at %lld ns — waiting 1 ms for slave XFER\n",
++                 "MASTER_XFER: sync GPIO HIGH at %lld ns — immediate master XFER (continuous-clock diagnostic)\n",
+                  ktime_to_ns(ktime_get_real()));
+-        usleep_range(1000, 1100);   /* slave IRQ latency ~50 µs; 1 ms = 20× margin */
+     }
+ 
+-    /* Start BCLK — slave is already waiting with XFER enabled and FIFO pre-filled */
++    /*
++     * BCLK/LRCK can remain physically continuous across seek.  Do not insert
++     * a millisecond-scale, non-integer frame offset between slave and master
++     * serializer XFER; start the master immediately after the shared C7 edge.
++     */
+     if (i2s_tdm->clk_trcm)
+         rockchip_i2s_tdm_xfer_trcm_start(i2s_tdm);
+     else
+@@ -2597,7 +2599,7 @@
+     rockchip_i2s_tdm_log_xfer_regs(i2s_tdm, "master-xfer");
+ 
+     dev_info(i2s_tdm->dev,
+-             "MASTER_XFER: BCLK started at %lld ns (delayed %u ms + 1 ms GPIO), unmute in %u ms\n",
++             "MASTER_XFER: XFER enabled at %lld ns (delayed %u ms, no C7 guard), unmute in %u ms\n",
+              ktime_to_ns(ktime_get_real()), i2s_tdm->master_start_delay_ms,
+              i2s_tdm->unmute_after_ms);
+ 

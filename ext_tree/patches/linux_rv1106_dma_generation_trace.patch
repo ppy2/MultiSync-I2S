@@ -1,0 +1,55 @@
+--- a/sound/core/pcm_dmaengine.c
++++ b/sound/core/pcm_dmaengine.c
+@@ -25,6 +25,8 @@
+ 	dma_cookie_t cookie;
+ 
+ 	unsigned int pos;
++	unsigned int diag_generation;
++	unsigned int diag_period;
+ };
+ 
+ static inline struct dmaengine_pcm_runtime_data *substream_to_prtd(
+@@ -133,7 +135,8 @@
+ 
+ static void dmaengine_pcm_dma_complete(void *arg)
+ {
+-	unsigned int new_pos;
++	unsigned int new_pos, diag_generation, diag_period;
++	bool diag_log;
+ 	struct snd_pcm_substream *substream = arg;
+ 	struct dmaengine_pcm_runtime_data *prtd;
+ 
+@@ -149,8 +152,20 @@
+ 	if (new_pos >= snd_pcm_lib_buffer_bytes(substream))
+ 		new_pos = 0;
+ 	prtd->pos = new_pos;
++	prtd->diag_period++;
++	diag_generation = prtd->diag_generation;
++	diag_period = prtd->diag_period;
++	diag_log = diag_period == 1 || diag_period == 27 ||
++		   diag_period == 54 || diag_period == 81 ||
++		   diag_period == 108 || diag_period == 162;
+ 	snd_pcm_stream_unlock_irq(substream);
+ 
++	if (diag_log)
++		dev_info(substream->pcm->card->dev,
++			 "DMA_GEN_PERIOD: gen=%u period=%u pos=%u at %llu ns\n",
++			 diag_generation, diag_period, new_pos,
++			 ktime_to_ns(ktime_get_real()));
++
+ 	snd_pcm_period_elapsed(substream);
+ }
+ 
+@@ -168,6 +183,12 @@
+ 		flags |= DMA_PREP_INTERRUPT;
+ 
+ 	prtd->pos = 0;
++	prtd->diag_generation++;
++	prtd->diag_period = 0;
++	dev_info(substream->pcm->card->dev,
++		 "DMA_GEN_PREPARE: gen=%u bytes=%zu period_bytes=%zu at %llu ns\n",
++		 prtd->diag_generation, snd_pcm_lib_buffer_bytes(substream),
++		 snd_pcm_lib_period_bytes(substream), ktime_to_ns(ktime_get_real()));
+ 	desc = dmaengine_prep_dma_cyclic(chan,
+ 		substream->runtime->dma_addr,
+ 		snd_pcm_lib_buffer_bytes(substream),

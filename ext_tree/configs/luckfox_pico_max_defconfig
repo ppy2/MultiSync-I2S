@@ -441,7 +441,7 @@ BR2_LINUX_KERNEL_CUSTOM_REPO_URL="https://github.com/ppy2/ale-linux-rv1106.git"
 BR2_LINUX_KERNEL_CUSTOM_REPO_VERSION="main"
 # BR2_LINUX_KERNEL_CUSTOM_REPO_GIT_SUBMODULES is not set
 BR2_LINUX_KERNEL_VERSION="main"
-BR2_LINUX_KERNEL_PATCH="../ext_tree/patches/linux_rv1106.patch"
+BR2_LINUX_KERNEL_PATCH="../ext_tree/patches/linux_rv1106.patch ../ext_tree/patches/linux_rv1106_fifo_arm.patch"
 # BR2_LINUX_KERNEL_USE_DEFCONFIG is not set
 # BR2_LINUX_KERNEL_USE_ARCH_DEFAULT_CONFIG is not set
 BR2_LINUX_KERNEL_USE_CUSTOM_CONFIG=y

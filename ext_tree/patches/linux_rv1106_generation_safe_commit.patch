@@ -1,0 +1,61 @@
+--- a/sound/soc/rockchip/rockchip_i2s_tdm.c
++++ b/sound/soc/rockchip/rockchip_i2s_tdm.c
+@@ -168,6 +168,8 @@
+     unsigned int master_start_delay_ms; // Delay before master starts BCLK (default 500)
+     struct delayed_work master_xfer_work; // Delayed work for master I2S_XFER
+     bool xfer_pending;              // Flag: master I2S_XFER is scheduled but not yet fired
++    atomic_t commit_generation;     // Invalidates stale master work across STOP/START
++    unsigned int master_work_generation;
+ 
+     /* FIFO underflow monitoring + hw_ptr drift detection */
+     struct delayed_work fifo_mon_work;  // Periodic FIFO/hw_ptr checker
+@@ -833,6 +835,8 @@
+          * regardless of HQPlayer trigger order.
+          * DMA fills FIFO during the wait; FIFO doesn't drain without BCLK.
+          */
++        i2s_tdm->master_work_generation =
++            atomic_inc_return(&i2s_tdm->commit_generation);
+         i2s_tdm->xfer_pending = true;
+         schedule_delayed_work(&i2s_tdm->master_xfer_work,
+                               msecs_to_jiffies(i2s_tdm->master_start_delay_ms));
+@@ -903,6 +907,7 @@
+ {
+     /* Cancel pending master BCLK start if not yet fired */
+     if (stream == SNDRV_PCM_STREAM_PLAYBACK && i2s_tdm->is_master_mode) {
++        atomic_inc(&i2s_tdm->commit_generation);
+         i2s_tdm->xfer_pending = false;
+         cancel_delayed_work(&i2s_tdm->master_xfer_work);
+         /* Reset sync GPIO LOW so slave sees a clean rising edge next time */
+@@ -2585,9 +2590,11 @@
+ static void rockchip_i2s_tdm_master_xfer_work(struct work_struct *work)
+ {
+     struct rk_i2s_tdm_dev *i2s_tdm = container_of(work, struct rk_i2s_tdm_dev, master_xfer_work.work);
++    unsigned int generation = READ_ONCE(i2s_tdm->master_work_generation);
+ 
+-    /* Check if stop was called while we were waiting */
+-    if (!i2s_tdm->xfer_pending)
++    /* A STOP or newer START invalidates this queued commit. */
++    if (!READ_ONCE(i2s_tdm->xfer_pending) ||
++        atomic_read(&i2s_tdm->commit_generation) != generation)
+         return;
+ 
+     i2s_tdm->xfer_pending = false;
+@@ -2608,6 +2615,9 @@
+         usleep_range(1000, 1100);   /* slave IRQ latency ~50 µs; 1 ms = 20× margin */
+     }
+ 
++    if (atomic_read(&i2s_tdm->commit_generation) != generation)
++        return;
++
+     /* Start BCLK — slave is already waiting with XFER enabled and FIFO pre-filled */
+     if (i2s_tdm->clk_trcm)
+         rockchip_i2s_tdm_xfer_trcm_start(i2s_tdm);
+@@ -4203,6 +4213,8 @@
+     i2s_tdm->unmute_after_ms = 50; /* 50 ms: enough for HQPlayer to detect slave xrun (~8 ms buffer) and send STOP */
+     i2s_tdm->master_start_delay_ms = 2000; /* 3-node: HQPlayer needs ~1.6s to deliver all triggers */
+     i2s_tdm->xfer_pending = false;
++    atomic_set(&i2s_tdm->commit_generation, 0);
++    i2s_tdm->master_work_generation = 0;
+     i2s_tdm->fifo_mon_active = false;
+     i2s_tdm->fifo_underflow_count = 0;
+ 

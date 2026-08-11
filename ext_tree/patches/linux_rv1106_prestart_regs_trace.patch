@@ -1,0 +1,20 @@
+--- a/sound/soc/rockchip/rockchip_i2s_tdm.c
++++ b/sound/soc/rockchip/rockchip_i2s_tdm.c
+@@ -220,6 +220,7 @@
+ /* Forward declarations for auto-mute functions */
+ static void rockchip_i2s_tdm_apply_mute(struct rk_i2s_tdm_dev *i2s_tdm, bool enable);
+ static void rockchip_i2s_tdm_tx_path_config(struct rk_i2s_tdm_dev *i2s_tdm, int num);
++static void rockchip_i2s_tdm_log_xfer_regs(struct rk_i2s_tdm_dev *i2s_tdm, const char *where);
+ 
+ 
+ 
+@@ -819,7 +820,9 @@
+     }
+ 
+     /* Start DMA first (fill FIFO) */
++    rockchip_i2s_tdm_log_xfer_regs(i2s_tdm, "trigger-start-before-dma");
+     rockchip_i2s_tdm_dma_ctrl(i2s_tdm, stream, 1);
++    rockchip_i2s_tdm_log_xfer_regs(i2s_tdm, "trigger-start-after-dma");
+ 
+     if (stream == SNDRV_PCM_STREAM_PLAYBACK && i2s_tdm->is_master_mode) {
+         /*

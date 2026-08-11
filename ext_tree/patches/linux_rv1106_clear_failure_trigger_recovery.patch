@@ -1,0 +1,73 @@
+--- a/sound/soc/rockchip/rockchip_i2s_tdm.c
++++ b/sound/soc/rockchip/rockchip_i2s_tdm.c
+@@ -147,6 +147,7 @@
+     struct gpio_desc *sync_gpio;   /* HW sync wire GPIO1_C7: master=OUT, slave=IN */
+     int sync_irq;                  /* slave: GPIO interrupt number (-1 if unused) */
+     bool sync_irq_armed;           /* slave: IRQ is armed, waiting for master pulse */
++    bool clear_failed_pending;      /* local SCLK-domain CLR timed out; recover at next START */
+     bool freq_domain_invert;        // Invert frequency domain GPIO polarity
+     
+     /* MCLK multiplier for switching 512/1024 */
+@@ -611,7 +612,9 @@
+     ret = regmap_read_poll_timeout_atomic(i2s_tdm->regmap, I2S_CLR, val,
+               !(val & clr), 10, 100);
+     if (ret < 0) {
+-    dev_warn(i2s_tdm->dev, "failed to clear %u\n", clr);
++    i2s_tdm->clear_failed_pending = true;
++    dev_warn(i2s_tdm->dev,
++         "failed to clear %u; full recovery latched for next START\n", clr);
+     goto reset;
+     }
+ 
+@@ -809,6 +812,51 @@
+ 
+ static void rockchip_i2s_tdm_start(struct rk_i2s_tdm_dev *i2s_tdm, int stream)
+ {
++    int ret;
++
++    if (stream == SNDRV_PCM_STREAM_PLAYBACK && i2s_tdm->clear_failed_pending) {
++        /* Full local CRU recovery before DMA and ~500ms before master C7.
++         * Assert serializer domains first, then HCLK; release in reverse. */
++        dev_info(i2s_tdm->dev,
++             "CLEAR_FAILED_RECOVERY: HCLK+TX+RX before DMA; settle=200ms\n");
++        if (IS_ERR_OR_NULL(i2s_tdm->tx_reset) ||
++            IS_ERR_OR_NULL(i2s_tdm->rx_reset) ||
++            IS_ERR_OR_NULL(i2s_tdm->hclk_reset)) {
++            dev_err(i2s_tdm->dev,
++                "CLEAR_FAILED_RECOVERY: reset control unavailable; staying silent\n");
++            return;
++        }
++        ret = reset_control_assert(i2s_tdm->tx_reset);
++        if (ret)
++            goto reset_failed;
++        ret = reset_control_assert(i2s_tdm->rx_reset);
++        if (ret)
++            goto reset_failed;
++        ret = reset_control_assert(i2s_tdm->hclk_reset);
++        if (ret)
++            goto reset_failed;
++        udelay(10);
++        ret = reset_control_deassert(i2s_tdm->hclk_reset);
++        if (ret)
++            goto reset_failed;
++        ret = reset_control_deassert(i2s_tdm->rx_reset);
++        if (ret)
++            goto reset_failed;
++        ret = reset_control_deassert(i2s_tdm->tx_reset);
++        if (ret)
++            goto reset_failed;
++        msleep(200);
++        i2s_tdm->clear_failed_pending = false;
++        dev_info(i2s_tdm->dev, "CLEAR_FAILED_RECOVERY: complete\n");
++    }
++    goto recovery_done;
++
++reset_failed:
++    dev_err(i2s_tdm->dev,
++        "CLEAR_FAILED_RECOVERY: reset step failed (%d); staying silent\n", ret);
++    return;
++
++recovery_done:
+     /* Check if stream is in pause state */
+     if (rockchip_i2s_tdm_is_paused(i2s_tdm, stream))
+         return;

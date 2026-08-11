@@ -1,14 +1,21 @@
 #!/bin/sh
 
+LOG=/tmp/log
+
 start() {
     printf "Starting NAA: "
+    : > "$LOG"
+    {
+        echo "=== networkaudiod start $(date +%s) ==="
+        echo "launcher: S95naa"
+    } >> "$LOG"
 
-    # Use drain wrapper on both nodes for synchronized stop behavior
-    # Both master and slave will DROP instead of DRAIN for instant stop
+    # Use drain wrapper on both nodes for synchronized stop behavior.
+    echo 500 > /sys/devices/platform/ffae0000.i2s/master_start_delay_ms
     if [ -f /usr/lib/libasound_nodrain.so ]; then
-        LD_PRELOAD=/usr/lib/libasound_nodrain.so /usr/sbin/networkaudiod > /dev/null 2>&1 &
+        LD_PRELOAD=/usr/lib/libasound_nodrain.so /usr/sbin/networkaudiod >> "$LOG" 2>&1 &
     else
-        /usr/sbin/networkaudiod > /dev/null 2>&1 &
+        /usr/sbin/networkaudiod >> "$LOG" 2>&1 &
     fi
 
     sleep 0.5
@@ -16,21 +23,21 @@ start() {
         MIXER=$(cat /tmp/mixer_control_cache | cut -d, -f1 | tr -d "'")
         [ -n "$MIXER" ] && amixer set "$MIXER" unmute 2>/dev/null
     fi
-    }
+}
+
 stop() {
+    echo "=== networkaudiod stop $(date +%s) ===" >> "$LOG"
     killall -9 networkaudiod
 }
+
 restart() {
-	stop
-	start
+    stop
+    start
 }
+
 case "$1" in
-  start|stop|restart)
-	"$1"
-	;;
-  *)
-	echo "Usage: $0 {start|stop|restart}"
-	exit 1
+  start|stop|restart) "$1" ;;
+  *) echo "Usage: $0 {start|stop|restart}"; exit 1 ;;
 esac
 
 exit $?

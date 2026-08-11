@@ -1,0 +1,15 @@
+--- a/sound/soc/rockchip/rockchip_i2s_tdm.c
++++ b/sound/soc/rockchip/rockchip_i2s_tdm.c
+@@ -3034,6 +3034,12 @@
+         return -ENODEV;
+     }
+ 
++    /* The legacy onstart scripts write this sysfs knob before every playback.
++     * Do not reset the live I2S block from userspace: it changes serializer
++     * phase and races the synchronized start path. */
++    dev_info(dev, "sysfs tx_reset ignored; use stream STOP/START path\n");
++    return count;
++
+     /* Perform full I2S block reset to clear clock synchronizer state */
+     /* Order: HCLK (bus) -> TX/RX (datapath) */
+     if (i2s_tdm->hclk_reset) {

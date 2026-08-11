@@ -1,0 +1,41 @@
+--- a/sound/soc/rockchip/rockchip_i2s_tdm.c
++++ b/sound/soc/rockchip/rockchip_i2s_tdm.c
+@@ -646,6 +646,22 @@
+     regmap_write(i2s_tdm->regmap, I2S_TXDR, 0x0);
+ }
+ 
++/* One TX/RX reset at the C7 common-start boundary.  No HCLK and no
++ * inter-assert delay: this is an A/B experiment, not a generic reset path. */
++static void rockchip_i2s_tdm_c7_reset(struct rk_i2s_tdm_dev *i2s_tdm)
++{
++    if (IS_ERR_OR_NULL(i2s_tdm->tx_reset) ||
++        IS_ERR_OR_NULL(i2s_tdm->rx_reset))
++        return;
++
++    reset_control_assert(i2s_tdm->tx_reset);
++    reset_control_assert(i2s_tdm->rx_reset);
++    reset_control_deassert(i2s_tdm->rx_reset);
++    reset_control_deassert(i2s_tdm->tx_reset);
++    dev_info(i2s_tdm->dev, "C7_TXRX_RESET: complete at %lld ns\n",
++             ktime_to_ns(ktime_get_real()));
++}
++
+ static void rockchip_i2s_tdm_fifo_xrun_detect(struct rk_i2s_tdm_dev *i2s_tdm,
+               int stream, bool en)
+ {
+@@ -2539,6 +2555,7 @@
+      * audio[0..N] while waiting.  When master BCLK arrives ~1 ms later,
+      * both master and slave output audio[0] on the first BCLK edge → BIT-EXACT.
+      */
++    rockchip_i2s_tdm_c7_reset(i2s_tdm);
+     if (i2s_tdm->clk_trcm)
+         rockchip_i2s_tdm_xfer_trcm_start(i2s_tdm);
+     else
+@@ -2574,6 +2591,7 @@
+      */
+     if (i2s_tdm->sync_gpio) {
+         gpiod_set_value(i2s_tdm->sync_gpio, 1);
++        rockchip_i2s_tdm_c7_reset(i2s_tdm);
+         dev_info(i2s_tdm->dev,
+                  "MASTER_XFER: sync GPIO pulsed HIGH at %lld ns — waiting 1 ms for slave XFER\n",
+                  ktime_to_ns(ktime_get_real()));

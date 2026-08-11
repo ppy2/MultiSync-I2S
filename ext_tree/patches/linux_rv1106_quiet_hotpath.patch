@@ -1,0 +1,139 @@
+--- a/sound/soc/rockchip/rockchip_i2s_tdm.c
++++ b/sound/soc/rockchip/rockchip_i2s_tdm.c
+@@ -2035,32 +2035,11 @@
+ {
+     struct rk_i2s_tdm_dev *i2s_tdm = to_info(dai);
+     int ret = 0;
+-    ktime_t trigger_start_time, trigger_end_time, trigger_stop_time, trigger_stop_end;
+ 
+     switch (cmd) {
+     case SNDRV_PCM_TRIGGER_START:
+     /* Reset pause state on start */
+     if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+-        struct snd_pcm_runtime *runtime = substream->runtime;
+-        unsigned int txfifolr, xfer_val;
+-
+-        trigger_start_time = ktime_get_real();
+-
+-        /* Log buffer positions BEFORE start */
+-        regmap_read(i2s_tdm->regmap, I2S_TXFIFOLR, &txfifolr);
+-        regmap_read(i2s_tdm->regmap, I2S_XFER, &xfer_val);
+-
+-        dev_info(i2s_tdm->dev,
+-                 "TRIGGER_START: %s at %lld ns | hw_ptr=%ld appl_ptr=%ld buf=%ld period=%ld periods=%u | FIFOLR=0x%08x XFER=0x%08x\n",
+-                 i2s_tdm->is_master_mode ? "MASTER" : "SLAVE",
+-                 ktime_to_ns(trigger_start_time),
+-                 (long)runtime->status->hw_ptr,
+-                 (long)runtime->control->appl_ptr,
+-                 (long)runtime->buffer_size,
+-                 (long)runtime->period_size,
+-                 runtime->periods,
+-                 txfifolr, xfer_val);
+-
+         i2s_tdm->playback_paused = false;
+ 
+         /* Reset drift compensation counters */
+@@ -2076,15 +2055,6 @@
+         /* Start stream immediately - mute is already ON by default */
+         rockchip_i2s_tdm_start(i2s_tdm, substream->stream);
+ 
+-        /* Log FIFO state AFTER start */
+-        regmap_read(i2s_tdm->regmap, I2S_TXFIFOLR, &txfifolr);
+-        trigger_end_time = ktime_get_real();
+-        dev_info(i2s_tdm->dev,
+-                 "TRIGGER_START: done at %lld ns (duration %lld us) | FIFOLR=0x%08x\n",
+-                 ktime_to_ns(trigger_end_time),
+-                 ktime_us_delta(trigger_end_time, trigger_start_time),
+-                 txfifolr);
+-
+         /*
+          * Schedule unmute in separate kworker thread.
+          * On master with GPIO HW sync: defer unmute to master_xfer_work (after BCLK starts).
+@@ -2094,9 +2064,6 @@
+          */
+         if (i2s_tdm->mute_control_enable && !i2s_tdm->user_mute_priority) {
+             if (i2s_tdm->is_master_mode && i2s_tdm->sync_gpio) {
+-                dev_info(i2s_tdm->dev,
+-                         "START: MASTER unmute deferred to BCLK start + %u ms (sync confirmation)\n",
+-                         i2s_tdm->unmute_after_ms);
+             } else {
+                 schedule_delayed_work(&i2s_tdm->unmute_work,
+                                     msecs_to_jiffies(i2s_tdm->unmute_after_ms));
+@@ -2132,16 +2099,6 @@
+     case SNDRV_PCM_TRIGGER_STOP:
+     /* Reset pause state on stop */
+     if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+-        struct snd_pcm_runtime *rt = substream->runtime;
+-
+-        trigger_stop_time = ktime_get_real();
+-        dev_info(i2s_tdm->dev,
+-                 "TRIGGER_STOP: %s at %lld ns | hw_ptr=%ld appl_ptr=%ld\n",
+-                 i2s_tdm->is_master_mode ? "MASTER" : "SLAVE",
+-                 ktime_to_ns(trigger_stop_time),
+-                 (long)rt->status->hw_ptr,
+-                 (long)rt->control->appl_ptr);
+-
+         i2s_tdm->playback_paused = false;
+ 
+         /* Stop FIFO underflow monitor */
+@@ -2166,10 +2123,6 @@
+ 
+         rockchip_i2s_tdm_stop(i2s_tdm, substream->stream);
+ 
+-        trigger_stop_end = ktime_get_real();
+-        dev_info(i2s_tdm->dev, "TRIGGER_STOP: exit at %lld ns (duration %lld us)\n",
+-                 ktime_to_ns(trigger_stop_end),
+-                 ktime_us_delta(trigger_stop_end, trigger_stop_time));
+     } else {
+         i2s_tdm->capture_paused = false;
+         rockchip_i2s_tdm_stop(i2s_tdm, substream->stream);
+@@ -2531,10 +2484,6 @@
+     else
+         rockchip_i2s_tdm_xfer_start(i2s_tdm, SNDRV_PCM_STREAM_PLAYBACK);
+ 
+-    dev_info(i2s_tdm->dev,
+-             "HW_SYNC_IRQ: SLAVE XFER enabled at %lld ns (waiting for master BCLK)\n",
+-             ktime_to_ns(ktime_get_real()));
+-
+     return IRQ_HANDLED;
+ }
+ 
+@@ -2561,9 +2510,6 @@
+      */
+     if (i2s_tdm->sync_gpio && i2s_tdm->sync_gpio_enable) {
+         gpiod_set_value(i2s_tdm->sync_gpio, 1);
+-        dev_info(i2s_tdm->dev,
+-                 "MASTER_XFER: sync GPIO pulsed HIGH at %lld ns — waiting 1 ms for slave XFER\n",
+-                 ktime_to_ns(ktime_get_real()));
+         usleep_range(1000, 1100);   /* slave IRQ latency ~50 µs; 1 ms = 20× margin */
+     }
+ 
+@@ -2576,11 +2522,6 @@
+     else
+         rockchip_i2s_tdm_xfer_start(i2s_tdm, SNDRV_PCM_STREAM_PLAYBACK);
+ 
+-    dev_info(i2s_tdm->dev,
+-             "MASTER_XFER: BCLK started at %lld ns (delayed %u ms + 1 ms GPIO), unmute in %u ms\n",
+-             ktime_to_ns(ktime_get_real()), i2s_tdm->master_start_delay_ms,
+-             i2s_tdm->unmute_after_ms);
+-
+     /*
+      * Schedule unmute AFTER BCLK starts (not at TRIGGER_START).
+      * Window: if any slave failed to sync, its ALSA buffer drains in ~8 ms (8 periods × 1 ms),
+@@ -3358,16 +3299,6 @@
+         }
+ 
+ skip_dsd_processing:
+-        /* Debug message only for first calls */
+-        if (copy_call_count < 3) {
+-            dev_info(i2s_tdm->dev, "PCM copy: %lu bytes, simple volume control (call %d)\n", 
+-                     bytes, copy_call_count++);
+-        } else if (copy_call_count == 3) {
+-            dev_info(i2s_tdm->dev, "PCM copy working, suppressing further debug messages\n");
+-            copy_call_count++;
+-        }
+-        
+-        dev_dbg(i2s_tdm->dev, "Processed %lu bytes for playback\n", bytes);
+     } else {
+         /* CAPTURE: simply copy to user */
+         if (copy_to_user(buf, dma_area, bytes))

@@ -1,0 +1,36 @@
+--- a/sound/soc/rockchip/rockchip_i2s_tdm.c
++++ b/sound/soc/rockchip/rockchip_i2s_tdm.c
+@@ -877,6 +877,23 @@
+     }
+ }
+ 
++/* Serializer reset after a completed playback STOP; no diagnostic I/O here. */
++static void rockchip_i2s_tdm_post_stop_reset(struct rk_i2s_tdm_dev *i2s_tdm)
++{
++    if (!i2s_tdm->tx_reset || !i2s_tdm->rx_reset)
++        return;
++
++    if (i2s_tdm->hclk_reset)
++        reset_control_assert(i2s_tdm->hclk_reset);
++    reset_control_assert(i2s_tdm->tx_reset);
++    reset_control_assert(i2s_tdm->rx_reset);
++    udelay(100);
++    if (i2s_tdm->hclk_reset)
++        reset_control_deassert(i2s_tdm->hclk_reset);
++    reset_control_deassert(i2s_tdm->tx_reset);
++    reset_control_deassert(i2s_tdm->rx_reset);
++}
++
+ static void rockchip_i2s_tdm_stop(struct rk_i2s_tdm_dev *i2s_tdm, int stream)
+ {
+     /* Cancel pending master BCLK start if not yet fired */
+@@ -905,6 +922,9 @@
+         rockchip_i2s_tdm_xfer_trcm_stop(i2s_tdm);
+     else
+         rockchip_i2s_tdm_xfer_stop(i2s_tdm, stream, false);
++
++    if (stream == SNDRV_PCM_STREAM_PLAYBACK)
++        rockchip_i2s_tdm_post_stop_reset(i2s_tdm);
+ }
+ 
+ /* New functions for pause/resume handling */

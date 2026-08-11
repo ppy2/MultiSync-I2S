@@ -380,16 +380,16 @@ i2s0_8ch {
             			<1 RK_PC5 RK_FUNC_GPIO &pcfg_pull_down_drv_level_2>;
 		};
 
-		hires_gpio: hires-gpio {
+		ready_gpio: ready-gpio {
         		rockchip,pins =
-            			/* gpio1_c6 - Hi-Res indicator (352.8/384 kHz) */
-            			<1 RK_PC6 RK_FUNC_GPIO &pcfg_pull_down_drv_level_2>;
+			/* gpio1_c6 - wired-AND READY bus; master reads internal pull-up */
+			<1 RK_PC6 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
 
 		sync_gpio: sync-gpio {
         		rockchip,pins =
-            			/* gpio1_c7 - HW sync wire: master OUT / slave IN */
-            			<1 RK_PC7 RK_FUNC_GPIO &pcfg_pull_down_drv_level_2>;
+			/* gpio1_c7 - push-pull HW sync wire: master output, slaves input */
+			<1 RK_PC7 RK_FUNC_GPIO &pcfg_pull_down_drv_level_2>;
 		};
 
 	/* Idle state for master clock isolation: BCK/LRCLK as GPIO input with pull-down */

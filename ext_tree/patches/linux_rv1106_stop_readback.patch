@@ -1,0 +1,28 @@
+--- a/sound/soc/rockchip/rockchip_i2s_tdm.c
++++ b/sound/soc/rockchip/rockchip_i2s_tdm.c
+@@ -726,7 +726,8 @@
+ static void rockchip_i2s_tdm_xfer_stop(struct rk_i2s_tdm_dev *i2s_tdm,
+            int stream, bool force)
+ {
+-    unsigned int msk, val, clr;
++    unsigned int msk, val, clr, xfer, fifolr, intsr, clr_reg;
++    int clear_ret;
+ 
+     if (i2s_tdm->quirks & QUIRK_ALWAYS_ON && !force)
+     return;
+@@ -750,7 +751,14 @@
+     /* delay for LRCK signal integrity */
+     udelay(150);
+ 
+-    rockchip_i2s_tdm_clear(i2s_tdm, clr);
++    clear_ret = rockchip_i2s_tdm_clear(i2s_tdm, clr);
++    regmap_read(i2s_tdm->regmap, I2S_XFER, &xfer);
++    regmap_read(i2s_tdm->regmap, I2S_TXFIFOLR, &fifolr);
++    regmap_read(i2s_tdm->regmap, I2S_INTSR, &intsr);
++    regmap_read(i2s_tdm->regmap, I2S_CLR, &clr_reg);
++    dev_info(i2s_tdm->dev,
++             "I2S_STOP_READBACK: clear=%d req=%08x XFER=%08x FIFOLR=%08x INTSR=%08x CLR=%08x\n",
++             clear_ret, clr, xfer, fifolr, intsr, clr_reg);
+ }
+ 
+ static void rockchip_i2s_tdm_xfer_trcm_start(struct rk_i2s_tdm_dev *i2s_tdm)

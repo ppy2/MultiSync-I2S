@@ -1,0 +1,12 @@
+--- a/sound/soc/rockchip/rockchip_i2s_tdm.c
++++ b/sound/soc/rockchip/rockchip_i2s_tdm.c
+@@ -611,7 +611,8 @@
+     ret = regmap_read_poll_timeout_atomic(i2s_tdm->regmap, I2S_CLR, val,
+               !(val & clr), 10, 100);
+     if (ret < 0) {
+-    dev_warn(i2s_tdm->dev, "failed to clear %u\n", clr);
++    dev_warn(i2s_tdm->dev, "failed to clear %u; settle before fallback reset\n", clr);
++    msleep(200);
+     goto reset;
+     }
+ 

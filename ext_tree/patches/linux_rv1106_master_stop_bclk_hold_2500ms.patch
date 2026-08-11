@@ -1,0 +1,16 @@
+--- a/sound/soc/rockchip/rockchip_i2s_tdm.c
++++ b/sound/soc/rockchip/rockchip_i2s_tdm.c
+@@ -896,6 +896,13 @@
+     /* Stop DMA first so no new words can enter the TX FIFO. */
+     rockchip_i2s_tdm_dma_ctrl(i2s_tdm, stream, 0);
+ 
++    /* Diagnostic: master retains BCLK after DMA stop so external-clock
++     * slaves can complete SCLK-domain CLR before the shared clock disappears. */
++    if (stream == SNDRV_PCM_STREAM_PLAYBACK && i2s_tdm->is_master_mode) {
++        dev_info(i2s_tdm->dev, "MASTER_STOP_BCLK_HOLD: 2500ms before XFER_STOP\n");
++        msleep(2500);
++    }
++
+     /* Then stop the I2S transfer and clear the serializer/FIFO state. */
+     if (i2s_tdm->clk_trcm)
+         rockchip_i2s_tdm_xfer_trcm_stop(i2s_tdm);

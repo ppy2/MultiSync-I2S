@@ -107,7 +107,7 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
  
  #define DRV_NAME "rockchip-i2s-tdm"
  
-@@ -39,328 +48,502 @@
+@@ -39,328 +48,504 @@
  #define HAVE_SYNC_RESET
  #endif
  
@@ -280,6 +280,8 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
 +    struct gpio_desc *freq_domain_gpio;  /* Frequency domain indicator GPIO (GPIO1_D1) 44.1/48 kHz */
 +    struct gpio_desc *freq_domain_inv_gpio;  /* Inverted freq domain output (GPIO1_C5) */
 +    struct gpio_desc *hires_gpio;  /* Hi-Res indicator GPIO (GPIO1_C6) — active for 352.8/384 kHz */
++    struct gpio_desc *ready_gpio;  /* C6 diagnostic marker */
++    bool data_marker_released;      /* first PCM copy marker per playback generation */
 +    struct gpio_desc *sync_gpio;   /* HW sync wire GPIO1_C7: master=OUT, slave=IN */
 +    int sync_irq;                  /* slave: GPIO interrupt number (-1 if unused) */
 +    bool sync_irq_armed;           /* slave: IRQ is armed, waiting for master pulse */
@@ -984,7 +986,7 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
  }
  
  /*
-@@ -446,2088 +633,4080 @@
+@@ -446,2088 +633,4102 @@
   */
  static void rockchip_i2s_tdm_tx_fifo_padding(struct rk_i2s_tdm_dev *i2s_tdm, bool en)
  {
@@ -1299,6 +1301,12 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
 +    /* Check if stream is in pause state */
 +    if (rockchip_i2s_tdm_is_paused(i2s_tdm, stream))
 +        return;
++
++    /* New playback generation: assert common C6 marker low before local arm. */
++    if (stream == SNDRV_PCM_STREAM_PLAYBACK && i2s_tdm->ready_gpio) {
++        gpiod_set_value(i2s_tdm->ready_gpio, 0);
++        i2s_tdm->data_marker_released = false;
++    }
 +
 +    /* Start DMA first (fill FIFO) */
 +    rockchip_i2s_tdm_dma_ctrl(i2s_tdm, stream, 1);
@@ -4553,6 +4561,14 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
 +        /* PLAYBACK: copy from user and process */
 +        if (copy_from_user(dma_area, buf, bytes))
 +            return -EFAULT;
++
++        /* Diagnostic only: first real userspace PCM write for this generation. */
++        if (i2s_tdm->ready_gpio && !i2s_tdm->data_marker_released) {
++            i2s_tdm->data_marker_released = true;
++            gpiod_set_value(i2s_tdm->ready_gpio, 1);
++            dev_info(i2s_tdm->dev,
++                     "C6 marker released at first PCM copy: %lu bytes\n", bytes);
++        }
 +        
 +        /* DSD MUTE: Replace data with silence signal (50% duty cycle) */
 +        /* DSD requires digital silence (meander) - both user and auto mute */
@@ -5995,6 +6011,14 @@ diff -Naur --no-dereference original_dir/sound/soc/rockchip/rockchip_i2s_tdm.c m
 +        i2s_tdm->hires_gpio = NULL;
 +    } else if (i2s_tdm->hires_gpio) {
 +        dev_info(&pdev->dev, "Hi-Res indicator GPIO initialized\n");
++    }
++
++    /* Initialize C6 diagnostic READY marker. Open-drain low is safe on shared bus. */
++    i2s_tdm->ready_gpio = devm_gpiod_get_optional(&pdev->dev, "ready", GPIOD_OUT_LOW);
++    if (IS_ERR(i2s_tdm->ready_gpio)) {
++        i2s_tdm->ready_gpio = NULL;
++    } else if (i2s_tdm->ready_gpio) {
++        dev_info(&pdev->dev, "C6 READY marker initialized (low until playback XFER)\n");
 +    }
 +
 +    /* Initialize HW sync GPIO (GPIO1_C7) — direction set in set_fmt when role is known */

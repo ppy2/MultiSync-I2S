@@ -1,0 +1,12 @@
+--- a/sound/soc/rockchip/rockchip_i2s_tdm.c
++++ b/sound/soc/rockchip/rockchip_i2s_tdm.c
+@@ -592,9 +592,6 @@
+     unsigned int val = 0;
+     int ret = 0;
+ 
+-    if (!i2s_tdm->is_master_mode)
+-    goto reset;
+-
+     switch (clr) {
+     case I2S_CLR_TXC:
+     rst = i2s_tdm->tx_reset;
