@@ -5,10 +5,10 @@
 start() {
     printf "Starting NAA: "
 
-    echo 500 > /sys/devices/platform/ffae0000.i2s/master_start_delay_ms
+    echo 150 > /sys/devices/platform/ffae0000.i2s/master_start_delay_ms
     echo 0 > /sys/devices/platform/ffae0000.i2s/post_stop_reset_hclk
     echo 0 > /sys/devices/platform/ffae0000.i2s/post_stop_reset_rx
-    echo 1 > /sys/devices/platform/ffae0000.i2s/post_stop_reset_tx
+    echo 0 > /sys/devices/platform/ffae0000.i2s/post_stop_reset_tx
     echo 0 > /sys/devices/platform/ffae0000.i2s/pre_start_reset_hclk
     echo 1 > /sys/devices/platform/ffae0000.i2s/pre_start_reset_tx
     echo 0 > /sys/devices/platform/ffae0000.i2s/pre_start_reset_rx
@@ -27,7 +27,7 @@ start() {
 }
 
 stop() {
-    echo "=== networkaudiod stop $(date +%s) ===" >> "$LOG"
+
     killall -9 networkaudiod
 }
 
