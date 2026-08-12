@@ -1,0 +1,87 @@
+--- a/sound/soc/rockchip/rockchip_i2s_tdm.c
++++ b/sound/soc/rockchip/rockchip_i2s_tdm.c
+@@ -173,6 +173,7 @@
+ 
+     /* Master delayed BCLK start - guarantees slave sets I2S_XFER first */
+     unsigned int master_start_delay_ms; // Delay before master starts BCLK (default 500)
++    unsigned int master_stop_bclk_hold_ms; /* BCLK hold after master DMA stop */
+     struct delayed_work master_xfer_work; // Delayed work for master I2S_XFER
+     bool xfer_pending;              // Flag: master I2S_XFER is scheduled but not yet fired
+     atomic_t commit_generation;     // Invalidates stale master work across STOP/START
+@@ -964,6 +965,15 @@
+     /* Stop DMA first so no new words can enter the TX FIFO. */
+     rockchip_i2s_tdm_dma_ctrl(i2s_tdm, stream, 0);
+ 
++    /*
++     * Keep master XFER/BCLK alive after DMA has stopped. External-clock
++     * slaves need SCLK to complete their later I2S_CLR request. This is
++     * master-only and playback-only; 0 disables the hold.
++     */
++    if (stream == SNDRV_PCM_STREAM_PLAYBACK && i2s_tdm->is_master_mode &&
++        i2s_tdm->master_stop_bclk_hold_ms)
++        msleep(i2s_tdm->master_stop_bclk_hold_ms);
++
+     /* Then stop the I2S transfer and clear the serializer/FIFO state. */
+     if (i2s_tdm->clk_trcm)
+         rockchip_i2s_tdm_xfer_trcm_stop(i2s_tdm);
+@@ -2957,6 +2967,32 @@
+ 
+ static DEVICE_ATTR(master_start_delay_ms, 0644, master_start_delay_ms_show, master_start_delay_ms_store);
+ 
++static ssize_t master_stop_bclk_hold_ms_show(struct device *dev,
++                                              struct device_attribute *attr,
++                                              char *buf)
++{
++    struct rk_i2s_tdm_dev *i2s_tdm = dev_get_drvdata(dev);
++
++    return sprintf(buf, "%u\n", i2s_tdm->master_stop_bclk_hold_ms);
++}
++
++static ssize_t master_stop_bclk_hold_ms_store(struct device *dev,
++                                               struct device_attribute *attr,
++                                               const char *buf, size_t count)
++{
++    struct rk_i2s_tdm_dev *i2s_tdm = dev_get_drvdata(dev);
++    unsigned int hold_ms;
++
++    if (kstrtouint(buf, 10, &hold_ms) || hold_ms > 5000)
++        return -EINVAL;
++
++    i2s_tdm->master_stop_bclk_hold_ms = hold_ms;
++    return count;
++}
++
++static DEVICE_ATTR(master_stop_bclk_hold_ms, 0644,
++                   master_stop_bclk_hold_ms_show, master_stop_bclk_hold_ms_store);
++
+ /* Runtime C7 A/B switch. Changes take effect on the next playback START only. */
+ static ssize_t sync_gpio_enable_show(struct device *dev,
+                                      struct device_attribute *attr, char *buf)
+@@ -4208,6 +4244,7 @@
+     i2s_tdm->mute_control_enable = true;
+     i2s_tdm->unmute_after_ms = 50; /* 50 ms: enough for HQPlayer to detect slave xrun (~8 ms buffer) and send STOP */
+     i2s_tdm->master_start_delay_ms = 2000; /* 3-node: HQPlayer needs ~1.6s to deliver all triggers */
++    i2s_tdm->master_stop_bclk_hold_ms = 2500;
+     i2s_tdm->xfer_pending = false;
+     atomic_set(&i2s_tdm->commit_generation, 0);
+     i2s_tdm->master_work_generation = 0;
+@@ -4683,6 +4720,11 @@
+         dev_err(&pdev->dev, "Failed to create master_start_delay_ms sysfs attribute: %d\n", ret);
+     }
+ 
++    ret = device_create_file(&pdev->dev, &dev_attr_master_stop_bclk_hold_ms);
++    if (ret) {
++        dev_err(&pdev->dev, "Failed to create master_stop_bclk_hold_ms sysfs attribute: %d\n", ret);
++    }
++
+     ret = device_create_file(&pdev->dev, &dev_attr_sync_gpio_enable);
+     if (ret) {
+         dev_err(&pdev->dev, "Failed to create sync_gpio_enable sysfs attribute: %d\n", ret);
+@@ -4749,6 +4791,7 @@
+     device_remove_file(&pdev->dev, &dev_attr_dsd_physical_swap);
+     device_remove_file(&pdev->dev, &dev_attr_freq_domain_invert);
+     device_remove_file(&pdev->dev, &dev_attr_master_start_delay_ms);
++    device_remove_file(&pdev->dev, &dev_attr_master_stop_bclk_hold_ms);
+     device_remove_file(&pdev->dev, &dev_attr_sync_gpio_enable);
+     device_remove_file(&pdev->dev, &dev_attr_pre_start_reset_hclk);
+     device_remove_file(&pdev->dev, &dev_attr_pre_start_reset_tx);
