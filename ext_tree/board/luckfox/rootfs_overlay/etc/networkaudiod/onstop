@@ -1,0 +1,7 @@
+#!/bin/sh
+
+echo 1 >/sys/devices/platform/ffae0000.i2s/tx_reset
+
+
+
+

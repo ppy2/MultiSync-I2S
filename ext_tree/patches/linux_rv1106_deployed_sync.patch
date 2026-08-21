@@ -1,0 +1,561 @@
+--- a/sound/soc/rockchip/rockchip_i2s_tdm.c	2026-08-21 13:44:36.261987315 +0200
++++ b/sound/soc/rockchip/rockchip_i2s_tdm.c	2026-08-21 13:36:10.970808339 +0200
+@@ -147,6 +147,13 @@
+     struct gpio_desc *sync_gpio;   /* HW sync wire GPIO1_C7: master=OUT, slave=IN */
+     int sync_irq;                  /* slave: GPIO interrupt number (-1 if unused) */
+     bool sync_irq_armed;           /* slave: IRQ is armed, waiting for master pulse */
++    bool sync_gpio_enable;          /* runtime C7 path toggle; default enabled */
++    bool pre_start_reset_hclk;      /* playback START: assert/deassert HCLK reset */
++    bool pre_start_reset_tx;        /* playback START: assert/deassert TX reset */
++    bool pre_start_reset_rx;        /* playback START: assert/deassert RX reset */
++    bool post_stop_reset_hclk;      /* playback STOP: assert/deassert HCLK reset */
++    bool post_stop_reset_tx;        /* playback STOP: assert/deassert TX reset */
++    bool post_stop_reset_rx;        /* playback STOP: assert/deassert RX reset */
+     bool freq_domain_invert;        // Invert frequency domain GPIO polarity
+     
+     /* MCLK multiplier for switching 512/1024 */
+@@ -166,8 +173,11 @@
+ 
+     /* Master delayed BCLK start - guarantees slave sets I2S_XFER first */
+     unsigned int master_start_delay_ms; // Delay before master starts BCLK (default 500)
++    unsigned int master_stop_bclk_hold_ms; /* BCLK hold after master DMA stop */
+     struct delayed_work master_xfer_work; // Delayed work for master I2S_XFER
+     bool xfer_pending;              // Flag: master I2S_XFER is scheduled but not yet fired
++    atomic_t commit_generation;     // Invalidates stale master work across STOP/START
++    unsigned int master_work_generation;
+ 
+     /* FIFO underflow monitoring + hw_ptr drift detection */
+     struct delayed_work fifo_mon_work;  // Periodic FIFO/hw_ptr checker
+@@ -416,6 +426,8 @@
+     return (val & I2S_XFER_RXS_START);
+ }
+ 
++static void rockchip_i2s_tdm_reset(struct reset_control *rc);
++
+ #ifdef HAVE_SYNC_RESET
+ #if defined(CONFIG_ARM) && !defined(writeq)
+ static inline void __raw_writeq(u64 val, volatile void __iomem *addr)
+@@ -558,16 +570,28 @@
+     rockchip_i2s_tdm_reset_deassert(i2s_tdm);
+ }
+ #else
+-static inline void rockchip_i2s_tdm_reset_assert(struct rk_i2s_tdm_dev *i2s_tdm)
++static void rockchip_i2s_tdm_reset_assert(struct rk_i2s_tdm_dev *i2s_tdm)
+ {
++    if (!IS_ERR_OR_NULL(i2s_tdm->tx_reset))
++        reset_control_assert(i2s_tdm->tx_reset);
++    if (!IS_ERR_OR_NULL(i2s_tdm->rx_reset))
++        reset_control_assert(i2s_tdm->rx_reset);
++    udelay(10);
+ }
+ 
+-static inline void rockchip_i2s_tdm_reset_deassert(struct rk_i2s_tdm_dev *i2s_tdm)
++static void rockchip_i2s_tdm_reset_deassert(struct rk_i2s_tdm_dev *i2s_tdm)
+ {
++    if (!IS_ERR_OR_NULL(i2s_tdm->rx_reset))
++        reset_control_deassert(i2s_tdm->rx_reset);
++    if (!IS_ERR_OR_NULL(i2s_tdm->tx_reset))
++        reset_control_deassert(i2s_tdm->tx_reset);
++    udelay(10);
+ }
+ 
+ static inline void rockchip_i2s_tdm_sync_reset(struct rk_i2s_tdm_dev *i2s_tdm)
+ {
++    rockchip_i2s_tdm_reset_assert(i2s_tdm);
++    rockchip_i2s_tdm_reset_deassert(i2s_tdm);
+ }
+ #endif
+ 
+@@ -809,19 +833,46 @@
+     return i2s_tdm->capture_paused;
+ }
+ 
++/*
++ * Playback START reset. Runs in ALSA trigger context, never from the C7 IRQ.
++ * The independent sysfs controls apply to the next START.
++ */
++static void rockchip_i2s_tdm_pre_start_reset(struct rk_i2s_tdm_dev *i2s_tdm)
++{
++    bool reset_hclk = i2s_tdm->pre_start_reset_hclk && i2s_tdm->hclk_reset;
++    bool reset_tx = i2s_tdm->pre_start_reset_tx && i2s_tdm->tx_reset;
++    bool reset_rx = i2s_tdm->pre_start_reset_rx && i2s_tdm->rx_reset;
++
++    if (!reset_hclk && !reset_tx && !reset_rx)
++        return;
++
++    if (reset_hclk)
++        reset_control_assert(i2s_tdm->hclk_reset);
++    if (reset_tx)
++        reset_control_assert(i2s_tdm->tx_reset);
++    if (reset_rx)
++        reset_control_assert(i2s_tdm->rx_reset);
++
++    udelay(100);
++
++    if (reset_hclk)
++        reset_control_deassert(i2s_tdm->hclk_reset);
++    if (reset_tx)
++        reset_control_deassert(i2s_tdm->tx_reset);
++    if (reset_rx)
++        reset_control_deassert(i2s_tdm->rx_reset);
++}
++
+ static void rockchip_i2s_tdm_start(struct rk_i2s_tdm_dev *i2s_tdm, int stream)
+ {
+     /* Check if stream is in pause state */
+     if (rockchip_i2s_tdm_is_paused(i2s_tdm, stream))
+         return;
+ 
+-    /* New playback generation: assert common C6 marker low before local arm. */
+-    if (stream == SNDRV_PCM_STREAM_PLAYBACK && i2s_tdm->ready_gpio) {
+-        gpiod_set_value(i2s_tdm->ready_gpio, 0);
+-        i2s_tdm->data_marker_released = false;
+-    }
++    if (stream == SNDRV_PCM_STREAM_PLAYBACK)
++        rockchip_i2s_tdm_pre_start_reset(i2s_tdm);
+ 
+-    /* Start DMA first (fill FIFO) */
++    /* Start DMA after the optional pre-start reset has settled. */
+     rockchip_i2s_tdm_dma_ctrl(i2s_tdm, stream, 1);
+ 
+     if (stream == SNDRV_PCM_STREAM_PLAYBACK && i2s_tdm->is_master_mode) {
+@@ -831,6 +882,8 @@
+          * regardless of HQPlayer trigger order.
+          * DMA fills FIFO during the wait; FIFO doesn't drain without BCLK.
+          */
++        i2s_tdm->master_work_generation =
++            atomic_inc_return(&i2s_tdm->commit_generation);
+         i2s_tdm->xfer_pending = true;
+         schedule_delayed_work(&i2s_tdm->master_xfer_work,
+                               msecs_to_jiffies(i2s_tdm->master_start_delay_ms));
+@@ -841,7 +894,8 @@
+     }
+ 
+     /* SLAVE: use GPIO hardware sync if available — XFER set by IRQ when master BCK starts */
+-    if (stream == SNDRV_PCM_STREAM_PLAYBACK && i2s_tdm->sync_irq >= 0) {
++    if (stream == SNDRV_PCM_STREAM_PLAYBACK && i2s_tdm->sync_gpio_enable &&
++        i2s_tdm->sync_irq >= 0) {
+         i2s_tdm->sync_irq_armed = true;
+         enable_irq(i2s_tdm->sync_irq);
+ 
+@@ -880,10 +934,37 @@
+     }
+ }
+ 
++static void rockchip_i2s_tdm_post_stop_reset(struct rk_i2s_tdm_dev *i2s_tdm)
++{
++    bool reset_hclk = i2s_tdm->post_stop_reset_hclk && i2s_tdm->hclk_reset;
++    bool reset_tx = i2s_tdm->post_stop_reset_tx && i2s_tdm->tx_reset;
++    bool reset_rx = i2s_tdm->post_stop_reset_rx && i2s_tdm->rx_reset;
++
++    if (!reset_hclk && !reset_tx && !reset_rx)
++        return;
++
++    if (reset_hclk)
++        reset_control_assert(i2s_tdm->hclk_reset);
++    if (reset_tx)
++        reset_control_assert(i2s_tdm->tx_reset);
++    if (reset_rx)
++        reset_control_assert(i2s_tdm->rx_reset);
++
++    udelay(100);
++
++    if (reset_hclk)
++        reset_control_deassert(i2s_tdm->hclk_reset);
++    if (reset_tx)
++        reset_control_deassert(i2s_tdm->tx_reset);
++    if (reset_rx)
++        reset_control_deassert(i2s_tdm->rx_reset);
++}
++
+ static void rockchip_i2s_tdm_stop(struct rk_i2s_tdm_dev *i2s_tdm, int stream)
+ {
+     /* Cancel pending master BCLK start if not yet fired */
+     if (stream == SNDRV_PCM_STREAM_PLAYBACK && i2s_tdm->is_master_mode) {
++        atomic_inc(&i2s_tdm->commit_generation);
+         i2s_tdm->xfer_pending = false;
+         cancel_delayed_work(&i2s_tdm->master_xfer_work);
+         /* Reset sync GPIO LOW so slave sees a clean rising edge next time */
+@@ -899,13 +980,22 @@
+         i2s_tdm->sync_irq_armed = false;
+     }
+ 
+-    /* Stop I2S transfer, then DMA */
++    /* Stop DMA first so no new words can enter the TX FIFO. */
++    rockchip_i2s_tdm_dma_ctrl(i2s_tdm, stream, 0);
++
++    /* External-clock slaves need SCLK while completing their CLR request. */
++    if (stream == SNDRV_PCM_STREAM_PLAYBACK && i2s_tdm->is_master_mode &&
++        i2s_tdm->master_stop_bclk_hold_ms)
++        msleep(i2s_tdm->master_stop_bclk_hold_ms);
++
++    /* Then stop the I2S transfer and clear the serializer/FIFO state. */
+     if (i2s_tdm->clk_trcm)
+         rockchip_i2s_tdm_xfer_trcm_stop(i2s_tdm);
+     else
+         rockchip_i2s_tdm_xfer_stop(i2s_tdm, stream, false);
+ 
+-    rockchip_i2s_tdm_dma_ctrl(i2s_tdm, stream, 0);
++    if (stream == SNDRV_PCM_STREAM_PLAYBACK)
++        rockchip_i2s_tdm_post_stop_reset(i2s_tdm);
+ }
+ 
+ /* New functions for pause/resume handling */
+@@ -2036,32 +2126,11 @@
+ {
+     struct rk_i2s_tdm_dev *i2s_tdm = to_info(dai);
+     int ret = 0;
+-    ktime_t trigger_start_time, trigger_end_time, trigger_stop_time, trigger_stop_end;
+ 
+     switch (cmd) {
+     case SNDRV_PCM_TRIGGER_START:
+     /* Reset pause state on start */
+     if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+-        struct snd_pcm_runtime *runtime = substream->runtime;
+-        unsigned int txfifolr, xfer_val;
+-
+-        trigger_start_time = ktime_get_real();
+-
+-        /* Log buffer positions BEFORE start */
+-        regmap_read(i2s_tdm->regmap, I2S_TXFIFOLR, &txfifolr);
+-        regmap_read(i2s_tdm->regmap, I2S_XFER, &xfer_val);
+-
+-        dev_info(i2s_tdm->dev,
+-                 "TRIGGER_START: %s at %lld ns | hw_ptr=%ld appl_ptr=%ld buf=%ld period=%ld periods=%u | FIFOLR=0x%08x XFER=0x%08x\n",
+-                 i2s_tdm->is_master_mode ? "MASTER" : "SLAVE",
+-                 ktime_to_ns(trigger_start_time),
+-                 (long)runtime->status->hw_ptr,
+-                 (long)runtime->control->appl_ptr,
+-                 (long)runtime->buffer_size,
+-                 (long)runtime->period_size,
+-                 runtime->periods,
+-                 txfifolr, xfer_val);
+-
+         i2s_tdm->playback_paused = false;
+ 
+         /* Reset drift compensation counters */
+@@ -2077,15 +2146,6 @@
+         /* Start stream immediately - mute is already ON by default */
+         rockchip_i2s_tdm_start(i2s_tdm, substream->stream);
+ 
+-        /* Log FIFO state AFTER start */
+-        regmap_read(i2s_tdm->regmap, I2S_TXFIFOLR, &txfifolr);
+-        trigger_end_time = ktime_get_real();
+-        dev_info(i2s_tdm->dev,
+-                 "TRIGGER_START: done at %lld ns (duration %lld us) | FIFOLR=0x%08x\n",
+-                 ktime_to_ns(trigger_end_time),
+-                 ktime_us_delta(trigger_end_time, trigger_start_time),
+-                 txfifolr);
+-
+         /*
+          * Schedule unmute in separate kworker thread.
+          * On master with GPIO HW sync: defer unmute to master_xfer_work (after BCLK starts).
+@@ -2095,9 +2155,6 @@
+          */
+         if (i2s_tdm->mute_control_enable && !i2s_tdm->user_mute_priority) {
+             if (i2s_tdm->is_master_mode && i2s_tdm->sync_gpio) {
+-                dev_info(i2s_tdm->dev,
+-                         "START: MASTER unmute deferred to BCLK start + %u ms (sync confirmation)\n",
+-                         i2s_tdm->unmute_after_ms);
+             } else {
+                 schedule_delayed_work(&i2s_tdm->unmute_work,
+                                     msecs_to_jiffies(i2s_tdm->unmute_after_ms));
+@@ -2133,16 +2190,6 @@
+     case SNDRV_PCM_TRIGGER_STOP:
+     /* Reset pause state on stop */
+     if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+-        struct snd_pcm_runtime *rt = substream->runtime;
+-
+-        trigger_stop_time = ktime_get_real();
+-        dev_info(i2s_tdm->dev,
+-                 "TRIGGER_STOP: %s at %lld ns | hw_ptr=%ld appl_ptr=%ld\n",
+-                 i2s_tdm->is_master_mode ? "MASTER" : "SLAVE",
+-                 ktime_to_ns(trigger_stop_time),
+-                 (long)rt->status->hw_ptr,
+-                 (long)rt->control->appl_ptr);
+-
+         i2s_tdm->playback_paused = false;
+ 
+         /* Stop FIFO underflow monitor */
+@@ -2167,10 +2214,6 @@
+ 
+         rockchip_i2s_tdm_stop(i2s_tdm, substream->stream);
+ 
+-        trigger_stop_end = ktime_get_real();
+-        dev_info(i2s_tdm->dev, "TRIGGER_STOP: exit at %lld ns (duration %lld us)\n",
+-                 ktime_to_ns(trigger_stop_end),
+-                 ktime_us_delta(trigger_stop_end, trigger_stop_time));
+     } else {
+         i2s_tdm->capture_paused = false;
+         rockchip_i2s_tdm_stop(i2s_tdm, substream->stream);
+@@ -2532,10 +2575,6 @@
+     else
+         rockchip_i2s_tdm_xfer_start(i2s_tdm, SNDRV_PCM_STREAM_PLAYBACK);
+ 
+-    dev_info(i2s_tdm->dev,
+-             "HW_SYNC_IRQ: SLAVE XFER enabled at %lld ns (waiting for master BCLK)\n",
+-             ktime_to_ns(ktime_get_real()));
+-
+     return IRQ_HANDLED;
+ }
+ 
+@@ -2543,9 +2582,11 @@
+ static void rockchip_i2s_tdm_master_xfer_work(struct work_struct *work)
+ {
+     struct rk_i2s_tdm_dev *i2s_tdm = container_of(work, struct rk_i2s_tdm_dev, master_xfer_work.work);
++    unsigned int generation = READ_ONCE(i2s_tdm->master_work_generation);
+ 
+-    /* Check if stop was called while we were waiting */
+-    if (!i2s_tdm->xfer_pending)
++    /* A STOP or newer START invalidates this queued commit. */
++    if (!READ_ONCE(i2s_tdm->xfer_pending) ||
++        atomic_read(&i2s_tdm->commit_generation) != generation)
+         return;
+ 
+     i2s_tdm->xfer_pending = false;
+@@ -2558,25 +2599,20 @@
+      *   3. Enable BCLK — slave FIFO is already loaded with audio[0..N]
+      *      Both master and slave output audio[0] on the very first BCLK edge → BIT-EXACT
+      */
+-    if (i2s_tdm->sync_gpio) {
++    if (i2s_tdm->sync_gpio && i2s_tdm->sync_gpio_enable) {
+         gpiod_set_value(i2s_tdm->sync_gpio, 1);
+-        dev_info(i2s_tdm->dev,
+-                 "MASTER_XFER: sync GPIO pulsed HIGH at %lld ns — waiting 1 ms for slave XFER\n",
+-                 ktime_to_ns(ktime_get_real()));
+         usleep_range(1000, 1100);   /* slave IRQ latency ~50 µs; 1 ms = 20× margin */
+     }
+ 
++    if (atomic_read(&i2s_tdm->commit_generation) != generation)
++        return;
++
+     /* Start BCLK — slave is already waiting with XFER enabled and FIFO pre-filled */
+     if (i2s_tdm->clk_trcm)
+         rockchip_i2s_tdm_xfer_trcm_start(i2s_tdm);
+     else
+         rockchip_i2s_tdm_xfer_start(i2s_tdm, SNDRV_PCM_STREAM_PLAYBACK);
+ 
+-    dev_info(i2s_tdm->dev,
+-             "MASTER_XFER: BCLK started at %lld ns (delayed %u ms + 1 ms GPIO), unmute in %u ms\n",
+-             ktime_to_ns(ktime_get_real()), i2s_tdm->master_start_delay_ms,
+-             i2s_tdm->unmute_after_ms);
+-
+     /*
+      * Schedule unmute AFTER BCLK starts (not at TRIGGER_START).
+      * Window: if any slave failed to sync, its ALSA buffer drains in ~8 ms (8 periods × 1 ms),
+@@ -2945,6 +2981,111 @@
+ 
+ static DEVICE_ATTR(master_start_delay_ms, 0644, master_start_delay_ms_show, master_start_delay_ms_store);
+ 
++static ssize_t master_stop_bclk_hold_ms_show(struct device *dev,
++                                              struct device_attribute *attr,
++                                              char *buf)
++{
++    struct rk_i2s_tdm_dev *i2s_tdm = dev_get_drvdata(dev);
++
++    return sprintf(buf, "%u\n", i2s_tdm->master_stop_bclk_hold_ms);
++}
++
++static ssize_t master_stop_bclk_hold_ms_store(struct device *dev,
++                                               struct device_attribute *attr,
++                                               const char *buf, size_t count)
++{
++    struct rk_i2s_tdm_dev *i2s_tdm = dev_get_drvdata(dev);
++    unsigned int hold_ms;
++
++    if (kstrtouint(buf, 10, &hold_ms) || hold_ms > 5000)
++        return -EINVAL;
++
++    i2s_tdm->master_stop_bclk_hold_ms = hold_ms;
++    return count;
++}
++
++static DEVICE_ATTR(master_stop_bclk_hold_ms, 0644,
++                   master_stop_bclk_hold_ms_show, master_stop_bclk_hold_ms_store);
++
++/* Runtime C7 A/B switch. Changes take effect on the next playback START only. */
++static ssize_t sync_gpio_enable_show(struct device *dev,
++                                     struct device_attribute *attr, char *buf)
++{
++    struct rk_i2s_tdm_dev *i2s_tdm = dev_get_drvdata(dev);
++    return sprintf(buf, "%u\n", i2s_tdm->sync_gpio_enable ? 1 : 0);
++}
++
++static ssize_t sync_gpio_enable_store(struct device *dev,
++                                      struct device_attribute *attr,
++                                      const char *buf, size_t count)
++{
++    struct rk_i2s_tdm_dev *i2s_tdm = dev_get_drvdata(dev);
++    unsigned int enable;
++
++    if (kstrtouint(buf, 10, &enable) || enable > 1)
++        return -EINVAL;
++
++    i2s_tdm->sync_gpio_enable = !!enable;
++    if (!enable && i2s_tdm->sync_gpio)
++        gpiod_set_value(i2s_tdm->sync_gpio, 0);
++    dev_info(i2s_tdm->dev, "C7 sync GPIO %s; applies at next playback START\n",
++             enable ? "enabled" : "disabled");
++    return count;
++}
++
++static DEVICE_ATTR(sync_gpio_enable, 0644,
++                   sync_gpio_enable_show, sync_gpio_enable_store);
++
++/* Independent playback START reset controls; values apply to next START. */
++#define PRE_START_RESET_ATTR(_name, _field) \
++static ssize_t pre_start_reset_##_name##_show(struct device *dev, \
++        struct device_attribute *attr, char *buf) \
++{ \
++    struct rk_i2s_tdm_dev *i2s_tdm = dev_get_drvdata(dev); \
++    return sprintf(buf, "%u\n", i2s_tdm->_field ? 1 : 0); \
++} \
++static ssize_t pre_start_reset_##_name##_store(struct device *dev, \
++        struct device_attribute *attr, const char *buf, size_t count) \
++{ \
++    struct rk_i2s_tdm_dev *i2s_tdm = dev_get_drvdata(dev); \
++    unsigned int enable; \
++    if (kstrtouint(buf, 10, &enable) || enable > 1) \
++        return -EINVAL; \
++    i2s_tdm->_field = !!enable; \
++    return count; \
++} \
++static DEVICE_ATTR(pre_start_reset_##_name, 0644, \
++        pre_start_reset_##_name##_show, pre_start_reset_##_name##_store)
++
++PRE_START_RESET_ATTR(hclk, pre_start_reset_hclk);
++PRE_START_RESET_ATTR(tx, pre_start_reset_tx);
++PRE_START_RESET_ATTR(rx, pre_start_reset_rx);
++
++/* Independent playback STOP reset controls; values apply to next STOP. */
++#define POST_STOP_RESET_ATTR(_name, _field) \
++static ssize_t post_stop_reset_##_name##_show(struct device *dev, \
++        struct device_attribute *attr, char *buf) \
++{ \
++    struct rk_i2s_tdm_dev *i2s_tdm = dev_get_drvdata(dev); \
++    return sprintf(buf, "%u\n", i2s_tdm->_field ? 1 : 0); \
++} \
++static ssize_t post_stop_reset_##_name##_store(struct device *dev, \
++        struct device_attribute *attr, const char *buf, size_t count) \
++{ \
++    struct rk_i2s_tdm_dev *i2s_tdm = dev_get_drvdata(dev); \
++    unsigned int enable; \
++    if (kstrtouint(buf, 10, &enable) || enable > 1) \
++        return -EINVAL; \
++    i2s_tdm->_field = !!enable; \
++    return count; \
++} \
++static DEVICE_ATTR(post_stop_reset_##_name, 0644, \
++        post_stop_reset_##_name##_show, post_stop_reset_##_name##_store)
++
++POST_STOP_RESET_ATTR(hclk, post_stop_reset_hclk);
++POST_STOP_RESET_ATTR(tx, post_stop_reset_tx);
++POST_STOP_RESET_ATTR(rx, post_stop_reset_rx);
++
+ /* Pinctrl state control sysfs interface for BCK/LRCLK isolation */
+ static ssize_t pinctrl_state_show(struct device *dev,
+                                   struct device_attribute *attr,
+@@ -3225,14 +3366,6 @@
+         if (copy_from_user(dma_area, buf, bytes))
+             return -EFAULT;
+ 
+-        /* Diagnostic only: first real userspace PCM write for this generation. */
+-        if (i2s_tdm->ready_gpio && !i2s_tdm->data_marker_released) {
+-            i2s_tdm->data_marker_released = true;
+-            gpiod_set_value(i2s_tdm->ready_gpio, 1);
+-            dev_info(i2s_tdm->dev,
+-                     "C6 marker released at first PCM copy: %lu bytes\n", bytes);
+-        }
+-        
+         /* DSD MUTE: Replace data with silence signal (50% duty cycle) */
+         /* DSD requires digital silence (meander) - both user and auto mute */
+         if ((i2s_tdm->mute || i2s_tdm->auto_mute_active) && i2s_tdm->dsd_mode_active &&
+@@ -3333,16 +3466,6 @@
+         }
+ 
+ skip_dsd_processing:
+-        /* Debug message only for first calls */
+-        if (copy_call_count < 3) {
+-            dev_info(i2s_tdm->dev, "PCM copy: %lu bytes, simple volume control (call %d)\n", 
+-                     bytes, copy_call_count++);
+-        } else if (copy_call_count == 3) {
+-            dev_info(i2s_tdm->dev, "PCM copy working, suppressing further debug messages\n");
+-            copy_call_count++;
+-        }
+-        
+-        dev_dbg(i2s_tdm->dev, "Processed %lu bytes for playback\n", bytes);
+     } else {
+         /* CAPTURE: simply copy to user */
+         if (copy_to_user(buf, dma_area, bytes))
+@@ -4136,7 +4259,10 @@
+     i2s_tdm->mute_control_enable = true;
+     i2s_tdm->unmute_after_ms = 50; /* 50 ms: enough for HQPlayer to detect slave xrun (~8 ms buffer) and send STOP */
+     i2s_tdm->master_start_delay_ms = 2000; /* 3-node: HQPlayer needs ~1.6s to deliver all triggers */
++    i2s_tdm->master_stop_bclk_hold_ms = 2500;
+     i2s_tdm->xfer_pending = false;
++    atomic_set(&i2s_tdm->commit_generation, 0);
++    i2s_tdm->master_work_generation = 0;
+     i2s_tdm->fifo_mon_active = false;
+     i2s_tdm->fifo_underflow_count = 0;
+ 
+@@ -4244,7 +4370,7 @@
+     }
+ 
+     /* Initialize C6 diagnostic READY marker. Open-drain low is safe on shared bus. */
+-    i2s_tdm->ready_gpio = devm_gpiod_get_optional(&pdev->dev, "ready", GPIOD_OUT_LOW);
++    i2s_tdm->ready_gpio = devm_gpiod_get_optional(&pdev->dev, "ready", GPIOD_IN);
+     if (IS_ERR(i2s_tdm->ready_gpio)) {
+         i2s_tdm->ready_gpio = NULL;
+     } else if (i2s_tdm->ready_gpio) {
+@@ -4260,6 +4386,13 @@
+     }
+     i2s_tdm->sync_irq = -1;
+     i2s_tdm->sync_irq_armed = false;
++    i2s_tdm->sync_gpio_enable = true;
++    i2s_tdm->pre_start_reset_hclk = false;
++    i2s_tdm->pre_start_reset_tx = false;
++    i2s_tdm->pre_start_reset_rx = false;
++    i2s_tdm->post_stop_reset_hclk = false;
++    i2s_tdm->post_stop_reset_tx = false;
++    i2s_tdm->post_stop_reset_rx = false;
+ 
+     of_id = of_match_device(rockchip_i2s_tdm_match, &pdev->dev);
+     if (!of_id)
+@@ -4602,6 +4735,22 @@
+         dev_err(&pdev->dev, "Failed to create master_start_delay_ms sysfs attribute: %d\n", ret);
+     }
+ 
++    ret = device_create_file(&pdev->dev, &dev_attr_sync_gpio_enable);
++    if (ret) {
++        dev_err(&pdev->dev, "Failed to create sync_gpio_enable sysfs attribute: %d\n", ret);
++    }
++
++    ret = device_create_file(&pdev->dev, &dev_attr_master_stop_bclk_hold_ms);
++    if (ret)
++        dev_err(&pdev->dev, "Failed to create master_stop_bclk_hold_ms sysfs attribute: %d\n", ret);
++
++    device_create_file(&pdev->dev, &dev_attr_pre_start_reset_hclk);
++    device_create_file(&pdev->dev, &dev_attr_pre_start_reset_tx);
++    device_create_file(&pdev->dev, &dev_attr_pre_start_reset_rx);
++    device_create_file(&pdev->dev, &dev_attr_post_stop_reset_hclk);
++    device_create_file(&pdev->dev, &dev_attr_post_stop_reset_tx);
++    device_create_file(&pdev->dev, &dev_attr_post_stop_reset_rx);
++
+     /* Create sysfs attribute for mute control */
+     ret = device_create_file(&pdev->dev, &dev_attr_mute);
+     if (ret) {
+@@ -4656,6 +4805,14 @@
+     device_remove_file(&pdev->dev, &dev_attr_dsd_physical_swap);
+     device_remove_file(&pdev->dev, &dev_attr_freq_domain_invert);
+     device_remove_file(&pdev->dev, &dev_attr_master_start_delay_ms);
++    device_remove_file(&pdev->dev, &dev_attr_sync_gpio_enable);
++    device_remove_file(&pdev->dev, &dev_attr_master_stop_bclk_hold_ms);
++    device_remove_file(&pdev->dev, &dev_attr_pre_start_reset_hclk);
++    device_remove_file(&pdev->dev, &dev_attr_pre_start_reset_tx);
++    device_remove_file(&pdev->dev, &dev_attr_pre_start_reset_rx);
++    device_remove_file(&pdev->dev, &dev_attr_post_stop_reset_hclk);
++    device_remove_file(&pdev->dev, &dev_attr_post_stop_reset_tx);
++    device_remove_file(&pdev->dev, &dev_attr_post_stop_reset_rx);
+     device_remove_file(&pdev->dev, &dev_attr_drift_ppb);
+     device_remove_file(&pdev->dev, &dev_attr_pointer_offset);
+     device_remove_file(&pdev->dev, &dev_attr_frame_counter);

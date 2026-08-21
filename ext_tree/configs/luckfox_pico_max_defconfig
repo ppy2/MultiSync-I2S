@@ -1,6 +1,6 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Buildroot -g0139fc8c-dirty Configuration
+# Buildroot -g6e613869 Configuration
 #
 BR2_HAVE_DOT_CONFIG=y
 BR2_EXTERNAL_NAMES="ext_tree"
@@ -441,7 +441,7 @@ BR2_LINUX_KERNEL_CUSTOM_REPO_URL="https://github.com/ppy2/ale-linux-rv1106.git"
 BR2_LINUX_KERNEL_CUSTOM_REPO_VERSION="main"
 # BR2_LINUX_KERNEL_CUSTOM_REPO_GIT_SUBMODULES is not set
 BR2_LINUX_KERNEL_VERSION="main"
-BR2_LINUX_KERNEL_PATCH="../ext_tree/patches/linux_rv1106.patch ../ext_tree/patches/linux_rv1106_fifo_arm.patch"
+BR2_LINUX_KERNEL_PATCH="../ext_tree/patches/linux_rv1106.patch ../ext_tree/patches/linux_rv1106_deployed_sync.patch"
 # BR2_LINUX_KERNEL_USE_DEFCONFIG is not set
 # BR2_LINUX_KERNEL_USE_ARCH_DEFAULT_CONFIG is not set
 BR2_LINUX_KERNEL_USE_CUSTOM_CONFIG=y
@@ -573,93 +573,7 @@ BR2_PACKAGE_KODI_ARCH_SUPPORTS=y
 # BR2_PACKAGE_MJPEGTOOLS is not set
 # BR2_PACKAGE_MODPLUGTOOLS is not set
 # BR2_PACKAGE_MOTION is not set
-BR2_PACKAGE_MPD=y
-
-#
-# Archive plugins
-#
-# BR2_PACKAGE_MPD_BZIP2 is not set
-# BR2_PACKAGE_MPD_SQLITE is not set
-# BR2_PACKAGE_MPD_ZZIP is not set
-
-#
-# Commercial services
-#
-# BR2_PACKAGE_MPD_QOBUZ is not set
-# BR2_PACKAGE_MPD_SOUNDCLOUD is not set
-
-#
-# Converter plugins
-#
-# BR2_PACKAGE_MPD_LIBSAMPLERATE is not set
-# BR2_PACKAGE_MPD_LIBSOXR is not set
-
-#
-# Decoder plugins
-#
-BR2_PACKAGE_MPD_DSD=y
-BR2_PACKAGE_MPD_FAAD2=y
-# BR2_PACKAGE_MPD_FFMPEG is not set
-BR2_PACKAGE_MPD_FLAC=y
-# BR2_PACKAGE_MPD_FLUIDSYNTH is not set
-BR2_PACKAGE_MPD_LIBSNDFILE=y
-BR2_PACKAGE_MPD_MAD=y
-# BR2_PACKAGE_MPD_MODPLUG is not set
-# BR2_PACKAGE_MPD_MPG123 is not set
-# BR2_PACKAGE_MPD_MUSEPACK is not set
-# BR2_PACKAGE_MPD_OPUS is not set
-# BR2_PACKAGE_MPD_SIDPLAY is not set
-BR2_PACKAGE_MPD_VORBIS=y
-BR2_PACKAGE_MPD_WAVPACK=y
-
-#
-# Encoder plugins
-#
-# BR2_PACKAGE_MPD_LAME is not set
-# BR2_PACKAGE_MPD_TWOLAME is not set
-
-#
-# Input plugins
-#
-# BR2_PACKAGE_MPD_CDIO_PARANOIA is not set
-BR2_PACKAGE_MPD_CURL=y
-# BR2_PACKAGE_MPD_LIBMMS is not set
-# BR2_PACKAGE_MPD_LIBNFS is not set
-
-#
-# samba support needs a glibc toolchain w/ dynamic library, RPC
-#
-
-#
-# Output plugins
-#
-BR2_PACKAGE_MPD_ALSA=y
-# BR2_PACKAGE_MPD_AO is not set
-BR2_PACKAGE_MPD_HTTPD_OUTPUT=y
-# BR2_PACKAGE_MPD_JACK2 is not set
-# BR2_PACKAGE_MPD_OPENAL is not set
-# BR2_PACKAGE_MPD_OSS is not set
-# BR2_PACKAGE_MPD_PULSEAUDIO is not set
-# BR2_PACKAGE_MPD_SHOUTCAST is not set
-
-#
-# Miscellaneous plugins
-#
-BR2_PACKAGE_MPD_AVAHI_SUPPORT=y
-
-#
-# io_uring support needs a toolchain w/ headers >= 5.1
-#
-# BR2_PACKAGE_MPD_LIBMPDCLIENT is not set
-BR2_PACKAGE_MPD_TCP=y
-# BR2_PACKAGE_MPD_UPNP_PUPNP is not set
-# BR2_PACKAGE_MPD_UPNP_NPUPNP is not set
-BR2_PACKAGE_MPD_UPNP_DISABLED=y
-
-#
-# Tag plugins
-#
-BR2_PACKAGE_MPD_ID3TAG=y
+# BR2_PACKAGE_MPD is not set
 # BR2_PACKAGE_MPD_MPC is not set
 # BR2_PACKAGE_MPG123 is not set
 # BR2_PACKAGE_MPV is not set
@@ -677,7 +591,7 @@ BR2_PACKAGE_PULSEAUDIO_HAS_ATOMIC=y
 # BR2_PACKAGE_TSTOOLS is not set
 # BR2_PACKAGE_TWOLAME is not set
 # BR2_PACKAGE_UDPXY is not set
-BR2_PACKAGE_UPMPDCLI=y
+# BR2_PACKAGE_UPMPDCLI is not set
 # BR2_PACKAGE_V4L2GRAB is not set
 # BR2_PACKAGE_V4L2LOOPBACK is not set
 # BR2_PACKAGE_VLC is not set
@@ -1495,18 +1409,12 @@ BR2_PACKAGE_GTKIOSTREAM_ARCH_SUPPORTS=y
 # BR2_PACKAGE_LIBEBUR128 is not set
 # BR2_PACKAGE_LIBG7221 is not set
 # BR2_PACKAGE_LIBGSM is not set
-BR2_PACKAGE_LIBID3TAG=y
+# BR2_PACKAGE_LIBID3TAG is not set
 # BR2_PACKAGE_LIBILBC is not set
 # BR2_PACKAGE_LIBLO is not set
-BR2_PACKAGE_LIBMAD=y
-# BR2_PACKAGE_LIBMAD_OPTIMIZATION_DEFAULT is not set
-# BR2_PACKAGE_LIBMAD_OPTIMIZATION_SPEED is not set
-BR2_PACKAGE_LIBMAD_OPTIMIZATION_ACCURACY=y
-# BR2_PACKAGE_LIBMAD_SSO is not set
-BR2_PACKAGE_LIBMAD_ASO=y
-# BR2_PACKAGE_LIBMAD_STRICT_ISO is not set
+# BR2_PACKAGE_LIBMAD is not set
 # BR2_PACKAGE_LIBMODPLUG is not set
-BR2_PACKAGE_LIBMPDCLIENT=y
+# BR2_PACKAGE_LIBMPDCLIENT is not set
 # BR2_PACKAGE_LIBOPENMPT is not set
 # BR2_PACKAGE_LIBREPLAYGAIN is not set
 # BR2_PACKAGE_LIBSAMPLERATE is not set
@@ -1515,7 +1423,7 @@ BR2_PACKAGE_LIBMPDCLIENT=y
 BR2_PACKAGE_LIBSNDFILE=y
 # BR2_PACKAGE_LIBSOUNDTOUCH is not set
 # BR2_PACKAGE_LIBSOXR is not set
-BR2_PACKAGE_LIBVORBIS=y
+# BR2_PACKAGE_LIBVORBIS is not set
 # BR2_PACKAGE_LILV is not set
 # BR2_PACKAGE_LV2 is not set
 # BR2_PACKAGE_MP4V2 is not set
@@ -4350,7 +4258,7 @@ BR2_TARGET_UBOOT_CUSTOM_PATCH_DIR=""
 #
 
 #
-# external BR tree for Luckfox Pico Max (in /opt/multichannel/ext_tree)
+# external BR tree for Luckfox Pico Max (in /mnt/sdb/MultiSync-I2S/ext_tree)
 #
 
 #
